@@ -97,8 +97,11 @@ def main():
     print("indicator_view.c: nowy ekran ustawiony jako startowy")
 
     # ------------------------------------------------------------------
-    # 4) ui.c -> include ui_home.h + powrot z ustawien na ui_home
-    #    (zmiana ograniczona TYLKO do funkcji ui_event_screen_setting)
+    # 4) ui.c -> include ui_home.h + przekierowanie CALEJ nawigacji "do domu"
+    #    (stockowe ekrany ui_screen_time / ui_screen_sensor) na nasz ui_home.
+    #    Uwaga: inicjalny lv_disp_load_scr(ui_screen_time) w ui_init() ZOSTAWIAMY
+    #    (ui_home nie istnieje jeszcze w trakcie ui_init) - domem zajmuje sie
+    #    ui_home_create()+load po ui_init() oraz "straznik" w ui_home.c.
     # ------------------------------------------------------------------
     p = os.path.join(main_dir, "ui", "ui.c")
     t = read(p)
@@ -108,22 +111,20 @@ def main():
             '#include "ui.h"\n#include "ui_helpers.h"\n#include "ui_home.h"',
             "ui.c (include)")
 
-    start_anchor = "void ui_event_screen_setting( lv_event_t * e) {"
-    end_anchor = "\nvoid ui_event_wifi__st_button_3( lv_event_t * e) {"
-    si = t.find(start_anchor)
-    ei = t.find(end_anchor)
-    if si == -1 or ei == -1 or ei <= si:
-        die("ui.c: nie odnaleziono zakresu funkcji ui_event_screen_setting")
-    block = t[si:ei]
-    if "ui_home" in block:
-        print("ui.c: powrot juz kieruje na ui_home")
-    else:
-        new_block = block.replace("ui_screen_time", "ui_home")
-        if new_block == block:
-            die("ui.c: brak ui_screen_time do podmiany w ui_event_screen_setting")
-        t = t[:si] + new_block + t[ei:]
-        write(p, t)
-        print("ui.c: powrot z ustawien kieruje na ekran glowny")
+    n = 0
+    for old, new in [
+        ("_ui_screen_change( ui_screen_time,",   "_ui_screen_change( ui_home,"),
+        ("_ui_screen_change( ui_screen_sensor,", "_ui_screen_change( ui_home,"),
+        ("ui_screen_last = ui_screen_time;",     "ui_screen_last = ui_home;"),
+        ("ui_screen_last = ui_screen_sensor;",   "ui_screen_last = ui_home;"),
+    ]:
+        n += t.count(old)
+        t = t.replace(old, new)
+    write(p, t)
+
+    if "_ui_screen_change( ui_home," not in t:
+        die("ui.c: nie udalo sie przekierowac nawigacji na ui_home")
+    print("ui.c: przekierowano nawigacje 'do domu' na ui_home (%d zmian w tym runie)" % n)
 
     print("APPLY-OVERLAY: OK")
 

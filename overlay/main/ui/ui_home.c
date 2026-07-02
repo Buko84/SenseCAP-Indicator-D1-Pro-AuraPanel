@@ -10,6 +10,9 @@
 #include <string.h>
 
 static const char *TAG = "ui_home";
+
+/* Ikony zasiegu WiFi nie sa deklarowane w ui.h (jest tam tylko wifi_disconet),
+ * a ich definicje siedza w ui_img_wifi_1/2/3_png.c -> deklarujemy je tutaj. */
 LV_IMG_DECLARE(ui_img_wifi_1_png);
 LV_IMG_DECLARE(ui_img_wifi_2_png);
 LV_IMG_DECLARE(ui_img_wifi_3_png);
@@ -90,6 +93,21 @@ static void gear_cb(lv_event_t *e)
 {
     if (ui_screen_setting) {
         lv_disp_load_scr(ui_screen_setting);
+    }
+}
+
+/* "Straznik domu": stockowy firmware po starcie i po roznych zdarzeniach
+ * (SCREEN_START, powrot z WiFi, gesty) sam laduje swoje ekrany ui_screen_time /
+ * ui_screen_sensor. Ten timer wykrywa taka sytuacje i natychmiast wraca na nasz
+ * ekran glowny. Dzieki temu nasz UI jest faktycznym "domem", niezaleznie od tego
+ * jaka sciezka stockowy kod probowal pokazac swoj stary ekran. */
+static void home_guard_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (!ui_home) return;
+    lv_obj_t *cur = lv_scr_act();
+    if (cur == ui_screen_time || cur == ui_screen_sensor) {
+        lv_disp_load_scr(ui_home);
     }
 }
 
@@ -259,6 +277,7 @@ lv_obj_t *ui_home_create(void)
                                     home_event_handler, NULL);
 
     update_time();
+    lv_timer_create(home_guard_cb, 250, NULL);   /* pilnuje, by nasz ekran byl domem */
     ESP_LOGI(TAG, "ekran glowny utworzony");
     return ui_home;
 }

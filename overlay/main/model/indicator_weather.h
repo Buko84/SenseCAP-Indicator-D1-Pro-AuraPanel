@@ -1,7 +1,7 @@
 #ifndef INDICATOR_WEATHER_H
 #define INDICATOR_WEATHER_H
 
-#include "view_data.h"
+#include "view_data.h"   /* enum VIEW_EVENT_*, struct view_data_wifi_st, view_event_handle (przez config.h) */
 #include <stdint.h>
 #include <stdbool.h>
 
