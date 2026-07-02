@@ -1,7 +1,7 @@
 #ifndef INDICATOR_WEATHER_H
 #define INDICATOR_WEATHER_H
 
-#include "config.h"
+#include "view_data.h"
 #include <stdint.h>
 #include <stdbool.h>
 
