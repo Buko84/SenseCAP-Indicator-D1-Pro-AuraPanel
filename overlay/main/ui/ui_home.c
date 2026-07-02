@@ -8,6 +8,7 @@
 
 #include "esp_event.h"
 #include "esp_log.h"
+#include "lv_port.h"
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -172,6 +173,7 @@ static void update_weather(const struct view_data_weather *wx)
  * funkcje LVGL bez dodatkowej blokady. Trzymamy sie tej samej konwencji. */
 static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    lv_port_sem_take();     /* handler biegnie w view_event_task -> chron LVGL */
     switch (id) {
     case VIEW_EVENT_TIME: {
         bool *fmt = (bool *)data;
@@ -196,6 +198,7 @@ static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     default:
         break;
     }
+    lv_port_sem_give();
 }
 
 /* ============================ budowa ekranu ============================ */

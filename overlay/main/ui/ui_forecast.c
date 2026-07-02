@@ -7,6 +7,7 @@
 
 #include "esp_event.h"
 #include "esp_log.h"
+#include "lv_port.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -93,7 +94,12 @@ static void forecast_event_handler(void *arg, esp_event_base_t base, int32_t id,
 {
     if (id != VIEW_EVENT_WEATHER_FORECAST) return;
     struct view_data_weather_forecast *fc = (struct view_data_weather_forecast *)data;
-    if (fc) { s_fc = *fc; rebuild(); }
+    if (fc) {
+        lv_port_sem_take();     /* handler biegnie w view_event_task -> chron LVGL */
+        s_fc = *fc;
+        rebuild();
+        lv_port_sem_give();
+    }
 }
 
 static void build(void)

@@ -4,6 +4,7 @@
 #include "view_data.h"
 #include "indicator_weather.h"
 #include "ui_font_pl.h"
+#include "lv_port.h"
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -18,6 +19,7 @@ static lv_obj_t *ta_city;        /* pole wyszukiwania miasta */
 static lv_obj_t *ta_ntp;         /* pole serwera NTP         */
 static lv_obj_t *kb;             /* klawiatura ekranowa      */
 static lv_obj_t *results_box;    /* kontener na wyniki miast */
+static lv_obj_t *cont;           /* przewijalna tresc (zmienia wysokosc pod klawiature) */
 static lv_obj_t *status_lbl;     /* komunikaty (np. "Szukam...") */
 
 static struct view_data_city_list s_last_list;   /* mapowanie przycisk->miasto */
@@ -42,9 +44,13 @@ static void ta_event_cb(lv_event_t *e)
     if (code == LV_EVENT_FOCUSED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        /* zmniejsz obszar tresci nad klawiatura i przewin pole do widoku */
+        if (cont) lv_obj_set_height(cont, 195);
+        lv_obj_scroll_to_view_recursive(ta, LV_ANIM_ON);
     } else if (code == LV_EVENT_DEFOCUSED || code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
         lv_keyboard_set_textarea(kb, NULL);
+        if (cont) lv_obj_set_height(cont, 300);   /* przywroc pelna wysokosc */
     }
 }
 
@@ -93,10 +99,12 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
     if (id != VIEW_EVENT_CITY_SEARCH_RESULT) return;
     struct view_data_city_list *l = (struct view_data_city_list *)data;
     if (!l) return;
+
+    lv_port_sem_take();     /* handler w view_event_task -> chron LVGL */
     s_last_list = *l;
 
     lv_obj_clean(results_box);
-    if (l->cnt == 0) { set_status("Nic nie znaleziono"); return; }
+    if (l->cnt == 0) { set_status("Nic nie znaleziono"); lv_port_sem_give(); return; }
     set_status("Wybierz miasto:");
 
     for (int i = 0; i < l->cnt; i++) {
@@ -116,6 +124,7 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
         lv_label_set_text(lbl, row);
         lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
     }
+    lv_port_sem_give();
 }
 
 /* ------------------------------------------------------------------ */
@@ -163,7 +172,7 @@ static void build(void)
     lv_obj_add_event_cb(back, back_cb, LV_EVENT_CLICKED, NULL);
 
     /* --- tresc (przewijalna kolumna) --- */
-    lv_obj_t *cont = lv_obj_create(scr);
+    cont = lv_obj_create(scr);
     lv_obj_set_size(cont, 452, 300);
     lv_obj_align(cont, LV_ALIGN_TOP_MID, 0, 60);
     lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
@@ -239,6 +248,11 @@ static void build(void)
     /* --- klawiatura ekranowa (ukryta domyslnie) --- */
     kb = lv_keyboard_create(scr);
     lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_TEXT_LOWER);
+    /* WAZNE: klawiatura musi uzywac fontu z symbolami LVGL (shift/enter/backspace),
+     * a nie naszego fontu PL (ktory ich nie ma) -> jawnie ustaw montserrat_18. */
+    lv_obj_set_style_text_font(kb, &lv_font_montserrat_18, 0);
+    lv_obj_set_size(kb, LV_PCT(100), 220);
+    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
 
     /* subskrypcja wynikow wyszukiwania */
