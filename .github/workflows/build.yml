@@ -1,0 +1,79 @@
+name: build-merged-bin
+
+# "Wrzuc i gotowe": to repo zawiera TYLKO nakladke (overlay/) + patcher (ci/).
+# GitHub Actions samo sklonuje oryginal Seeeda na PRZYPIETEJ wersji, nalozy nasze
+# pliki, naniesie drobne edycje i zbuduje pojedynczy merged.bin (do wgrania od 0x0).
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  # Przypiety commit oryginalnego repo -> gwarantuje, ze patcher trafi w kotwice.
+  UPSTREAM_REPO: https://github.com/Seeed-Solution/sensecap_indicator_esp32.git
+  UPSTREAM_SHA:  77edb8d2b9a92fc67965c1b2d4a838f0d09a1800
+  PROJECT_DIR:   upstream/examples/indicator_basis
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobierz to repo (nakladka)
+        uses: actions/checkout@v4
+
+      - name: Pobierz oryginal Seeeda (przypiety commit, plytko)
+        run: |
+          git init upstream
+          cd upstream
+          git remote add origin "$UPSTREAM_REPO"
+          git -c protocol.version=2 fetch --depth 1 origin "$UPSTREAM_SHA"
+          git checkout FETCH_HEAD
+          echo "upstream @ $(git rev-parse --short HEAD)"
+
+      - name: Nalozenie nakladki + patch
+        run: |
+          # 1) skopiuj nasze pliki do main/ (CMake uzywa GLOB -> zlapie je sam)
+          cp -r overlay/main/. "${PROJECT_DIR}/main/"
+          # 2) nanies 4 deterministyczne edycje na oryginalne pliki
+          python3 ci/apply_overlay.py "${PROJECT_DIR}"
+
+      - name: Build firmware + merge_bin (ESP-IDF v5.1.4)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.1.4
+          target: esp32s3
+          path: ${{ env.PROJECT_DIR }}
+          command: >-
+            idf.py build &&
+            cd build &&
+            esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB
+            -o merged.bin @flash_args &&
+            ls -la merged.bin
+
+      - name: Zbierz binarki
+        run: |
+          mkdir -p artifacts
+          B="${PROJECT_DIR}/build"
+          cp "$B/merged.bin"                          artifacts/
+          cp "$B/bootloader/bootloader.bin"           artifacts/ || true
+          cp "$B"/partition_table/partition-table.bin artifacts/ || true
+          find "$B" -maxdepth 1 -name '*.bin' ! -name 'merged.bin' -exec cp {} artifacts/ \;
+          echo "--- artifacts ---"; ls -la artifacts
+
+      - name: Upload artefaktu
+        uses: actions/upload-artifact@v4
+        with:
+          name: sensecap-indicator-merged
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: Dolacz do Release (tylko tag vX.Y.Z)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/merged.bin
+            artifacts/bootloader.bin
+            artifacts/partition-table.bin
