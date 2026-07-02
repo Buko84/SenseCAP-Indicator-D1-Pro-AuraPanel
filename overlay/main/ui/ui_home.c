@@ -281,6 +281,15 @@ lv_obj_t *ui_home_create(void)
     lv_img_set_src(img_wifi, &ui_img_wifi_disconet_png);
     lv_obj_align_to(img_wifi, gear, LV_ALIGN_OUT_LEFT_MID, -14, 0);
 
+    /* miejscowosc na gornym pasku, od lewej (dluga nazwa -> wielokropek) */
+    lbl_wx_city = lv_label_create(ui_home);
+    lv_label_set_text(lbl_wx_city, "(brak lokalizacji)");
+    lv_obj_set_style_text_color(lbl_wx_city, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(lbl_wx_city, &ui_font_pl_18, 0);
+    lv_obj_set_width(lbl_wx_city, 330);
+    lv_label_set_long_mode(lbl_wx_city, LV_LABEL_LONG_DOT);
+    lv_obj_align(lbl_wx_city, LV_ALIGN_TOP_LEFT, 16, 20);
+
     /* ---- kontener na 4 kafelki: flex-wrap, wysrodkowany, rowne odstepy ---- */
     lv_obj_t *grid = lv_obj_create(ui_home);
     lv_obj_remove_style_all(grid);
@@ -331,12 +340,9 @@ lv_obj_t *ui_home_create(void)
     lv_obj_set_style_pad_column(wx_row, 10, 0);
     lv_obj_clear_flag(wx_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 1) miejscowosc (po lewej) */
-    lbl_wx_city = lv_label_create(wx_row);
-    lv_label_set_text(lbl_wx_city, "(brak lokalizacji)");
-    lv_obj_set_style_text_color(lbl_wx_city, lv_color_hex(0xFFFFFF), 0);
+    /* wysrodkowany wiersz: ikona pogody, temperatura, opis (miasto jest na gornym pasku) */
 
-    /* 2) ikona pogody (glif z fontu Weather Icons) */
+    /* ikona pogody (glif z fontu Weather Icons) */
     wx_icon = lv_label_create(wx_row);
     lv_obj_set_style_text_font(wx_icon, &ui_font_weather_34, 0);
     lv_obj_set_style_text_color(wx_icon, lv_color_hex(0x9AA5B1), 0);
