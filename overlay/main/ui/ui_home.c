@@ -10,6 +10,9 @@
 #include <string.h>
 
 static const char *TAG = "ui_home";
+LV_IMG_DECLARE(ui_img_wifi_1_png);
+LV_IMG_DECLARE(ui_img_wifi_2_png);
+LV_IMG_DECLARE(ui_img_wifi_3_png);
 
 lv_obj_t *ui_home = NULL;
 
