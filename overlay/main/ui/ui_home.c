@@ -311,7 +311,7 @@ lv_obj_t *ui_home_create(void)
     lv_obj_t *dt_row = lv_obj_create(ui_home);
     lv_obj_remove_style_all(dt_row);
     lv_obj_set_size(dt_row, LV_PCT(96), LV_SIZE_CONTENT);
-    lv_obj_align(dt_row, LV_ALIGN_BOTTOM_MID, 0, -58);
+    lv_obj_align(dt_row, LV_ALIGN_BOTTOM_MID, 0, -72);
     lv_obj_set_flex_flow(dt_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(dt_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(dt_row, 14, 0);
