@@ -23,6 +23,10 @@ LV_IMG_DECLARE(ui_img_wifi_3_png);
 
 lv_obj_t *ui_home = NULL;
 
+/* domyslne wartosci; zostana nadpisane przez model przy starcie */
+struct view_data_display  g_disp_cfg  = { .brightness = 80, .sleep_mode_en = false, .sleep_mode_time_min = 5 };
+struct view_data_time_cfg g_time_cfg  = { .time_format_24 = true, .auto_update = true, .auto_update_zone = true, .daylight = true, .zone = 0 };
+
 /* --- uchwyty do etykiet, ktore aktualizujemy w locie --- */
 static lv_obj_t *lbl_time;
 static lv_obj_t *lbl_date;
@@ -115,7 +119,7 @@ static void home_guard_cb(lv_timer_t *t)
     (void)t;
     if (!ui_home) return;
     lv_obj_t *cur = lv_scr_act();
-    if (cur == ui_screen_time || cur == ui_screen_sensor) {
+    if (cur == ui_screen_time || cur == ui_screen_sensor || cur == ui_screen_setting) {
         lv_disp_load_scr(ui_home);
     }
 }
@@ -214,6 +218,14 @@ static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     }
     case VIEW_EVENT_WEATHER: {
         update_weather((struct view_data_weather *)data);
+        break;
+    }
+    case VIEW_EVENT_DISPLAY_CFG: {
+        if (data) g_disp_cfg = *(struct view_data_display *)data;
+        break;
+    }
+    case VIEW_EVENT_TIME_CFG_UPDATE: {
+        if (data) g_time_cfg = *(struct view_data_time_cfg *)data;
         break;
     }
     default:
@@ -322,6 +334,10 @@ lv_obj_t *ui_home_create(void)
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
                                     home_event_handler, NULL);
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WEATHER,
+                                    home_event_handler, NULL);
+    esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG,
+                                    home_event_handler, NULL);
+    esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_TIME_CFG_UPDATE,
                                     home_event_handler, NULL);
 
     update_time();

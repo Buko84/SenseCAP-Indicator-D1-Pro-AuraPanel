@@ -1,6 +1,7 @@
 #include "ui_settings.h"
 #include "ui_home.h"
-#include "ui.h"                 /* ui_img_back_png, ui_screen_wifi, ui_screen_date_time */
+#include "ui_time.h"
+#include "ui.h"                 /* ui_img_back_png, ui_screen_wifi */
 #include "view_data.h"
 #include "indicator_weather.h"
 #include "ui_font_pl.h"
@@ -16,11 +17,16 @@ static const char *TAG = "ui_settings";
 
 static lv_obj_t *scr;            /* ekran ustawien */
 static lv_obj_t *ta_city;        /* pole wyszukiwania miasta */
-static lv_obj_t *ta_ntp;         /* pole serwera NTP         */
 static lv_obj_t *kb;             /* klawiatura ekranowa      */
 static lv_obj_t *results_box;    /* kontener na wyniki miast */
 static lv_obj_t *cont;           /* przewijalna tresc (zmienia wysokosc pod klawiature) */
 static lv_obj_t *status_lbl;     /* komunikaty (np. "Szukam...") */
+static lv_obj_t *sl_bright;      /* suwak jasnosci */
+static lv_obj_t *sw_alwayson;    /* przelacznik always-on */
+static lv_obj_t *sleep_row;      /* wiersz "wylacz po" (widoczny gdy !always-on) */
+static lv_obj_t *dd_sleep;       /* dropdown czasu do wygaszenia */
+
+static const int SLEEP_MINS[6] = {1, 2, 5, 10, 15, 30};
 
 static struct view_data_city_list s_last_list;   /* mapowanie przycisk->miasto */
 static bool s_created = false;
@@ -33,8 +39,40 @@ static void set_status(const char *txt)
 
 /* --- nawigacja --- */
 static void back_cb(lv_event_t *e)      { lv_disp_load_scr(ui_home); }
-static void open_wifi_cb(lv_event_t *e) { if (ui_screen_wifi)      lv_disp_load_scr(ui_screen_wifi); }
-static void open_time_cb(lv_event_t *e) { if (ui_screen_date_time) lv_disp_load_scr(ui_screen_date_time); }
+static void open_wifi_cb(lv_event_t *e) { if (ui_screen_wifi) lv_disp_load_scr(ui_screen_wifi); }
+static void open_time_cb(lv_event_t *e) { ui_time_open(); }   /* NASZ ekran czasu */
+
+/* --- wyswietlacz: zastosuj konfiguracje --- */
+static void apply_display(void)
+{
+    struct view_data_display cfg;
+    cfg.brightness = (int)lv_slider_get_value(sl_bright);
+    cfg.sleep_mode_en = !lv_obj_has_state(sw_alwayson, LV_STATE_CHECKED);
+    int idx = (int)lv_dropdown_get_selected(dd_sleep);
+    if (idx < 0 || idx > 5) idx = 2;
+    cfg.sleep_mode_time_min = SLEEP_MINS[idx];
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_DISPLAY_CFG_APPLY, &cfg, sizeof(cfg), portMAX_DELAY);
+}
+
+static void bright_changed_cb(lv_event_t *e)
+{
+    int v = (int)lv_slider_get_value(sl_bright);   /* podglad na zywo */
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_BRIGHTNESS_UPDATE, &v, sizeof(v), portMAX_DELAY);
+}
+static void bright_released_cb(lv_event_t *e) { apply_display(); }
+
+static void alwayson_changed_cb(lv_event_t *e)
+{
+    bool always = lv_obj_has_state(sw_alwayson, LV_STATE_CHECKED);
+    if (sleep_row) {
+        if (always) lv_obj_add_flag(sleep_row, LV_OBJ_FLAG_HIDDEN);
+        else        lv_obj_clear_flag(sleep_row, LV_OBJ_FLAG_HIDDEN);
+    }
+    apply_display();
+}
+static void sleep_changed_cb(lv_event_t *e) { apply_display(); }
 
 /* --- klawiatura: pokaz/ukryj przy fokusie pola tekstowego --- */
 static void ta_event_cb(lv_event_t *e)
@@ -82,15 +120,6 @@ static void search_cb(lv_event_t *e)
     set_status("Szukam...");
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                       VIEW_EVENT_CITY_SEARCH_REQ, buf, sizeof(buf), portMAX_DELAY);
-}
-
-/* --- klik "Zapisz NTP" --- */
-static void ntp_save_cb(lv_event_t *e)
-{
-    const char *s = lv_textarea_get_text(ta_ntp);
-    if (!s || !s[0]) { set_status("Wpisz adres serwera NTP"); return; }
-    indicator_weather_set_ntp(s);
-    set_status("Zapisano serwer NTP");
 }
 
 /* --- odbior wynikow wyszukiwania (event z modelu pogody) --- */
@@ -214,42 +243,73 @@ static void build(void)
     lv_obj_set_flex_flow(results_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(results_box, 6, 0);
 
-    /* Przejscia do stockowych ekranow (dzialaja) */
+    /* Przejscia do ekranow */
     make_button(cont, "Ustawienia WiFi", open_wifi_cb);
     make_button(cont, "Czas / data / strefa", open_time_cb);
 
-    /* Sekcja: NTP */
-    section_label(cont, "Serwer NTP");
+    /* Sekcja: Wyswietlacz */
+    section_label(cont, "Wyświetlacz");
 
-    lv_obj_t *row2 = lv_obj_create(cont);
-    lv_obj_set_size(row2, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(row2, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(row2, 0, 0);
-    lv_obj_set_style_pad_all(row2, 0, 0);
-    lv_obj_set_flex_flow(row2, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(row2, 8, 0);
+    /* jasnosc */
+    lv_obj_t *br_row = lv_obj_create(cont);
+    lv_obj_set_size(br_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(br_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(br_row, 0, 0);
+    lv_obj_set_style_pad_all(br_row, 4, 0);
+    lv_obj_set_flex_flow(br_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(br_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *brl = lv_label_create(br_row);
+    lv_label_set_text(brl, "Jasność");
+    lv_obj_set_style_text_color(brl, lv_color_hex(0xFFFFFF), 0);
+    sl_bright = lv_slider_create(br_row);
+    lv_slider_set_range(sl_bright, 1, 100);
+    lv_slider_set_value(sl_bright, g_disp_cfg.brightness, LV_ANIM_OFF);
+    lv_obj_set_width(sl_bright, 240);
+    lv_obj_add_event_cb(sl_bright, bright_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(sl_bright, bright_released_cb, LV_EVENT_RELEASED, NULL);
 
-    ta_ntp = lv_textarea_create(row2);
-    lv_textarea_set_one_line(ta_ntp, true);
-    lv_textarea_set_placeholder_text(ta_ntp, "pool.ntp.org");
-    lv_obj_set_flex_grow(ta_ntp, 1);
-    lv_obj_add_event_cb(ta_ntp, ta_event_cb, LV_EVENT_ALL, NULL);
+    /* always-on */
+    lv_obj_t *ao_row = lv_obj_create(cont);
+    lv_obj_set_size(ao_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(ao_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ao_row, 0, 0);
+    lv_obj_set_style_pad_all(ao_row, 4, 0);
+    lv_obj_set_flex_flow(ao_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ao_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *aol = lv_label_create(ao_row);
+    lv_label_set_text(aol, "Ekran zawsze włączony");
+    lv_obj_set_style_text_color(aol, lv_color_hex(0xFFFFFF), 0);
+    sw_alwayson = lv_switch_create(ao_row);
+    if (!g_disp_cfg.sleep_mode_en) lv_obj_add_state(sw_alwayson, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_alwayson, alwayson_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* czas wygaszenia (widoczny gdy nie always-on) */
+    sleep_row = lv_obj_create(cont);
+    lv_obj_set_size(sleep_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(sleep_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(sleep_row, 0, 0);
+    lv_obj_set_style_pad_all(sleep_row, 4, 0);
+    lv_obj_set_flex_flow(sleep_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(sleep_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *spl = lv_label_create(sleep_row);
+    lv_label_set_text(spl, "Wyłącz podświetlenie po (min)");
+    lv_obj_set_style_text_color(spl, lv_color_hex(0xFFFFFF), 0);
+    dd_sleep = lv_dropdown_create(sleep_row);
+    lv_dropdown_set_options(dd_sleep, "1\n2\n5\n10\n15\n30");
+    lv_obj_set_width(dd_sleep, 90);
+    /* wybierz najblizsza wartosc z zapisanej konfiguracji */
     {
-        char cur[64];
-        indicator_weather_get_ntp(cur, sizeof(cur));
-        if (cur[0]) lv_textarea_set_text(ta_ntp, cur);
+        int sel = 2;
+        for (int i = 0; i < 6; i++) if (SLEEP_MINS[i] == g_disp_cfg.sleep_mode_time_min) { sel = i; break; }
+        lv_dropdown_set_selected(dd_sleep, sel);
     }
+    lv_obj_add_event_cb(dd_sleep, sleep_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    if (!g_disp_cfg.sleep_mode_en) lv_obj_add_flag(sleep_row, LV_OBJ_FLAG_HIDDEN);
 
-    lv_obj_t *save = lv_btn_create(row2);
-    lv_obj_add_event_cb(save, ntp_save_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *svl = lv_label_create(save);
-    lv_label_set_text(svl, "Zapisz");
-
-    /* --- klawiatura ekranowa (ukryta domyslnie) --- */
+    /* --- klawiatura ekranowa (ukryta domyslnie; dla pola miasta) --- */
     kb = lv_keyboard_create(scr);
     lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_TEXT_LOWER);
-    /* WAZNE: klawiatura musi uzywac fontu z symbolami LVGL (shift/enter/backspace),
-     * a nie naszego fontu PL (ktory ich nie ma) -> jawnie ustaw montserrat_18. */
+    /* klawiatura musi uzywac fontu z symbolami LVGL (shift/enter/backspace) */
     lv_obj_set_style_text_font(kb, &lv_font_montserrat_18, 0);
     lv_obj_set_size(kb, LV_PCT(100), 220);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
