@@ -61,8 +61,8 @@ Ekran główny (480 × 480, ciemny motyw):
 │      │   22.4 °C │      │    47 %   │       │
 │      └───────────┘      └───────────┘       │
 │                                             │
-│              12:34   Środa, 2 lipca 2026    │   ← godzina + data po polsku
-│         Świdnik  ☀  23°C  Bezchmurnie       │   ← klik = prognoza 3-dniowa
+│         12:34   Środa, 2 lipca 2026         │   ← godzina + data po polsku
+│        Świdnik  ☀  23°C  Bezchmurnie        │   ← klik = prognoza 3-dniowa
 └─────────────────────────────────────────────┘
 ```
 
