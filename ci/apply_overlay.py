@@ -98,6 +98,19 @@ def main():
     print("indicator_view.c: nowy ekran ustawiony jako startowy")
 
     # ------------------------------------------------------------------
+    # 3b) indicator_time.c -> popraw odwrocona logike DST (stockowy //todo):
+    #     wlaczony czas letni ma DODAWAC godzine, nie odejmowac.
+    # ------------------------------------------------------------------
+    p = os.path.join(main_dir, "model", "indicator_time.c")
+    t = read(p)
+    if "zone -=1;" in t:
+        t = replace_once(t, "zone -=1;", "zone +=1;", "indicator_time.c (DST)")
+        write(p, t)
+        print("indicator_time.c: poprawiono logike DST (+1h)")
+    else:
+        print("indicator_time.c: DST juz poprawione/nieobecne")
+
+    # ------------------------------------------------------------------
     # 4) ui.c -> include ui_home.h + przekierowanie CALEJ nawigacji "do domu"
     #    (stockowe ekrany ui_screen_time / ui_screen_sensor) na nasz ui_home.
     #    Uwaga: inicjalny lv_disp_load_scr(ui_screen_time) w ui_init() ZOSTAWIAMY
