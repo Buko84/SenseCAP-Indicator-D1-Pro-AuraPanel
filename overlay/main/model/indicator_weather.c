@@ -501,3 +501,22 @@ uint32_t indicator_weather_code_color(int c, bool day)
     default:                return 0x9AA5B1;
     }
 }
+
+
+const char *indicator_weather_code_glyph(int c, bool day)
+{
+    switch (c) {
+    case 0:                 return day ? "\uF00D" : "\uF02E"; /* slonce / czysta noc */
+    case 1: case 2:         return "\uF002";                   /* czesciowe zachmurzenie */
+    case 3:                 return "\uF013";                   /* pochmurno */
+    case 45: case 48:       return "\uF014";                   /* mgla */
+    case 51: case 53: case 55:
+    case 61: case 63: case 65:
+    case 66: case 67:
+    case 80: case 81: case 82: return "\uF019";                /* deszcz */
+    case 71: case 73: case 75: case 77:
+    case 85: case 86:       return "\uF01B";                   /* snieg */
+    case 95: case 96: case 99: return "\uF01E";                /* burza */
+    default:                return "\uF013";
+    }
+}

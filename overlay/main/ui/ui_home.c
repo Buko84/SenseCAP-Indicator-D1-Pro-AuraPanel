@@ -25,6 +25,7 @@ lv_obj_t *ui_home = NULL;
 
 /* --- uchwyty do etykiet, ktore aktualizujemy w locie --- */
 static lv_obj_t *lbl_time;
+static lv_obj_t *lbl_date;
 static lv_obj_t *img_wifi;
 static lv_obj_t *wx_icon;          /* kolorowa "ikonka" pogody (chip) */
 static lv_obj_t *lbl_wx_temp;
@@ -133,6 +134,24 @@ static void update_time(void)
         strftime(buf, sizeof(buf), "%I:%M", &tm_info);
     }
     if (lbl_time) lv_label_set_text(lbl_time, buf);
+
+    /* data po polsku: "Środa, 2 lipca 2026" */
+    static const char *pl_days[7] = {
+        "Niedziela", "Poniedziałek", "Wtorek", "Środa",
+        "Czwartek", "Piątek", "Sobota"
+    };
+    static const char *pl_months[12] = {
+        "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+        "lipca", "sierpnia", "września", "października", "listopada", "grudnia"
+    };
+    if (lbl_date) {
+        int wd = tm_info.tm_wday;      if (wd < 0 || wd > 6)  wd = 0;
+        int mo = tm_info.tm_mon;       if (mo < 0 || mo > 11) mo = 0;
+        char dbuf[48];
+        snprintf(dbuf, sizeof(dbuf), "%s, %d %s %d",
+                 pl_days[wd], tm_info.tm_mday, pl_months[mo], tm_info.tm_year + 1900);
+        lv_label_set_text(lbl_date, dbuf);
+    }
 }
 
 static void update_sensor(enum sensor_data_type type, float val)
@@ -162,9 +181,11 @@ static void update_weather(const struct view_data_weather *wx)
     if (lbl_wx_temp) lv_label_set_text(lbl_wx_temp, b);
     if (lbl_wx_city) lv_label_set_text(lbl_wx_city, wx->city);
     if (lbl_wx_desc) lv_label_set_text(lbl_wx_desc, indicator_weather_code_desc(wx->weather_code));
-    if (wx_icon)
-        lv_obj_set_style_bg_color(wx_icon,
+    if (wx_icon) {
+        lv_label_set_text(wx_icon, indicator_weather_code_glyph(wx->weather_code, wx->is_day));
+        lv_obj_set_style_text_color(wx_icon,
             lv_color_hex(indicator_weather_code_color(wx->weather_code, wx->is_day)), 0);
+    }
 }
 
 /* ============================ obsluga eventow ============================ */
@@ -239,18 +260,31 @@ lv_obj_t *ui_home_create(void)
     make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", &lbl_temp);
     make_tile(grid, &ui_img_humidity_1_png, "Wilgotność",  "%",    &lbl_hum);
 
-    /* ---- dol ekranu, po srodku: godzina ---- */
-    lbl_time = lv_label_create(ui_home);
+    /* ---- dol ekranu, po srodku: godzina + data ---- */
+    lv_obj_t *dt_row = lv_obj_create(ui_home);
+    lv_obj_remove_style_all(dt_row);
+    lv_obj_set_size(dt_row, LV_PCT(96), LV_SIZE_CONTENT);
+    lv_obj_align(dt_row, LV_ALIGN_BOTTOM_MID, 0, -58);
+    lv_obj_set_flex_flow(dt_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(dt_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(dt_row, 14, 0);
+    lv_obj_clear_flag(dt_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lbl_time = lv_label_create(dt_row);
     lv_label_set_text(lbl_time, "--:--");
     lv_obj_set_style_text_color(lbl_time, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_time, LV_ALIGN_BOTTOM_MID, 0, -56);
 
-    /* ---- pod godzina: ikonka pogody + temperatura + miejscowosc ---- */
+    lbl_date = lv_label_create(dt_row);
+    lv_label_set_text(lbl_date, "");
+    lv_obj_set_style_text_color(lbl_date, lv_color_hex(0x9AA5B1), 0);
+    lv_obj_set_style_text_font(lbl_date, &ui_font_pl_18, 0);
+
+    /* ---- pod spodem: miejscowosc, ikona pogody, temperatura, opis ---- */
     lv_obj_t *wx_row = lv_obj_create(ui_home);
     lv_obj_remove_style_all(wx_row);
     lv_obj_set_size(wx_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_align(wx_row, LV_ALIGN_BOTTOM_MID, 0, -16);
+    lv_obj_align(wx_row, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_add_flag(wx_row, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(wx_row, 10);
     lv_obj_add_event_cb(wx_row, weather_row_cb, LV_EVENT_CLICKED, NULL);
@@ -259,25 +293,26 @@ lv_obj_t *ui_home_create(void)
     lv_obj_set_style_pad_column(wx_row, 10, 0);
     lv_obj_clear_flag(wx_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* kolorowa "ikonka" pogody (do podmiany na PNG w przyszlosci) */
-    wx_icon = lv_obj_create(wx_row);
-    lv_obj_remove_style_all(wx_icon);
-    lv_obj_set_size(wx_icon, 26, 26);
-    lv_obj_set_style_radius(wx_icon, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(wx_icon, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(wx_icon, lv_color_hex(0x9AA5B1), 0);
+    /* 1) miejscowosc (po lewej) */
+    lbl_wx_city = lv_label_create(wx_row);
+    lv_label_set_text(lbl_wx_city, "(brak lokalizacji)");
+    lv_obj_set_style_text_color(lbl_wx_city, lv_color_hex(0xFFFFFF), 0);
 
+    /* 2) ikona pogody (glif z fontu Weather Icons) */
+    wx_icon = lv_label_create(wx_row);
+    lv_obj_set_style_text_font(wx_icon, &ui_font_weather_34, 0);
+    lv_obj_set_style_text_color(wx_icon, lv_color_hex(0x9AA5B1), 0);
+    lv_label_set_text(wx_icon, "");
+
+    /* 3) temperatura */
     lbl_wx_temp = lv_label_create(wx_row);
     lv_label_set_text(lbl_wx_temp, "--\u00B0C");
     lv_obj_set_style_text_color(lbl_wx_temp, lv_color_hex(0xFFFFFF), 0);
 
-    lbl_wx_city = lv_label_create(wx_row);
-    lv_label_set_text(lbl_wx_city, "(brak lokalizacji)");
-    lv_obj_set_style_text_color(lbl_wx_city, lv_color_hex(0x9AA5B1), 0);
-
+    /* 4) opis tekstowy */
     lbl_wx_desc = lv_label_create(wx_row);
     lv_label_set_text(lbl_wx_desc, "");
-    lv_obj_set_style_text_color(lbl_wx_desc, lv_color_hex(0x6B7684), 0);
+    lv_obj_set_style_text_color(lbl_wx_desc, lv_color_hex(0x9AA5B1), 0);
 
     /* ---- subskrypcja eventow (auto-aktualizacja) ---- */
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_TIME,

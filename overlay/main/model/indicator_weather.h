@@ -95,6 +95,9 @@ const char *indicator_weather_code_desc(int wmo_code);
  * jeszcze wlasnych PNG-ow. Slonce=zolte, chmury=szare, deszcz=niebieski itd. */
 uint32_t indicator_weather_code_color(int wmo_code, bool is_day);
 
+/* Mapowanie kodu WMO -> glif w foncie ui_font_weather_34 (UTF-8, PUA). */
+const char *indicator_weather_code_glyph(int wmo_code, bool is_day);
+
 #ifdef __cplusplus
 }
 #endif

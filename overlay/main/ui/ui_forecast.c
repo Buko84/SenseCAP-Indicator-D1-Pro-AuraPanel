@@ -60,13 +60,11 @@ static void rebuild(void)
         lv_obj_set_style_border_width(card, 0, 0);
         lv_obj_set_style_pad_all(card, 12, 0);
 
-        /* kolorowa ikonka pogody (kolor wg kodu WMO) */
-        lv_obj_t *ic = lv_obj_create(card);
-        lv_obj_remove_style_all(ic);
-        lv_obj_set_size(ic, 30, 30);
-        lv_obj_set_style_radius(ic, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_opa(ic, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(ic, lv_color_hex(indicator_weather_code_color(d->weather_code, true)), 0);
+        /* ikona pogody (glif z fontu Weather Icons, kolor wg kodu WMO) */
+        lv_obj_t *ic = lv_label_create(card);
+        lv_obj_set_style_text_font(ic, &ui_font_weather_34, 0);
+        lv_obj_set_style_text_color(ic, lv_color_hex(indicator_weather_code_color(d->weather_code, true)), 0);
+        lv_label_set_text(ic, indicator_weather_code_glyph(d->weather_code, true));
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
 
         /* dzien + opis */
