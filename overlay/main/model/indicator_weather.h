@@ -65,6 +65,11 @@ int indicator_weather_init(void);
 /* Reczne wymuszenie odswiezenia pogody (np. po wpieciu w UI). */
 void indicator_weather_refresh(void);
 
+/* Serwer NTP: zapis do NVS + natychmiastowa rekonfiguracja SNTP.
+ * (stock startuje na "pool.ntp.org"; tutaj mozna go nadpisac z ustawien) */
+void indicator_weather_set_ntp(const char *server);
+void indicator_weather_get_ntp(char *out, size_t out_sz);
+
 /* Mapowanie kodu WMO -> krotki opis PL (do etykiety pod temperatura). */
 const char *indicator_weather_code_desc(int wmo_code);
 

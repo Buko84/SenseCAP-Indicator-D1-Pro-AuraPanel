@@ -1,4 +1,5 @@
 #include "ui_home.h"
+#include "ui_settings.h"
 #include "ui.h"                 /* daje LV_IMG_DECLARE(...) dla ikon oraz ui_screen_setting */
 #include "view_data.h"
 #include "indicator_weather.h"
@@ -88,12 +89,10 @@ static const lv_img_dsc_t *wifi_img_for(bool connected, int8_t rssi)
     return &ui_img_wifi_1_png;
 }
 
-/* Klik w trybik -> ekran ustawien (istniejacy w stockowym UI) */
+/* Klik w trybik -> NASZ ekran ustawien (lokalizacja/pogoda, NTP, WiFi, czas) */
 static void gear_cb(lv_event_t *e)
 {
-    if (ui_screen_setting) {
-        lv_disp_load_scr(ui_screen_setting);
-    }
+    ui_settings_open();
 }
 
 /* "Straznik domu": stockowy firmware po starcie i po roznych zdarzeniach
@@ -149,9 +148,8 @@ static void update_weather(const struct view_data_weather *wx)
     if (!wx || !wx->valid) return;
     char b[16];
     /* Uwaga: znak stopnia (U+00B0) czesto nie jest w domyslnym zakresie fontu
-     * Montserrat w LVGL -> uzywamy samego "C". Jesli wlaczysz rozszerzony zakres
-     * fontu, mozesz zmienic na "%.0f\u00B0C". */
-    snprintf(b, sizeof(b), "%.0f C", wx->temperature);
+     * font montserrat_28 w tym buildzie MA znak stopnia (zakres od 0xB0). */
+    snprintf(b, sizeof(b), "%.0f\u00B0C", wx->temperature);
     if (lbl_wx_temp) lv_label_set_text(lbl_wx_temp, b);
     if (lbl_wx_city) lv_label_set_text(lbl_wx_city, wx->city);
     if (lbl_wx_desc) lv_label_set_text(lbl_wx_desc, indicator_weather_code_desc(wx->weather_code));
@@ -226,7 +224,7 @@ lv_obj_t *ui_home_create(void)
 
     make_tile(grid, &ui_img_co2_png,        "CO2",         "ppm",  &lbl_co2);
     make_tile(grid, &ui_img_tvoc_png,       "TVOC",        "ppb",  &lbl_tvoc);
-    make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "C", &lbl_temp);
+    make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", &lbl_temp);
     make_tile(grid, &ui_img_humidity_1_png, "Wilgotnosc",  "%",    &lbl_hum);
 
     /* ---- dol ekranu, po srodku: godzina ---- */
@@ -255,7 +253,7 @@ lv_obj_t *ui_home_create(void)
     lv_obj_set_style_bg_color(wx_icon, lv_color_hex(0x9AA5B1), 0);
 
     lbl_wx_temp = lv_label_create(wx_row);
-    lv_label_set_text(lbl_wx_temp, "-- C");
+    lv_label_set_text(lbl_wx_temp, "--\u00B0C");
     lv_obj_set_style_text_color(lbl_wx_temp, lv_color_hex(0xFFFFFF), 0);
 
     lbl_wx_city = lv_label_create(wx_row);

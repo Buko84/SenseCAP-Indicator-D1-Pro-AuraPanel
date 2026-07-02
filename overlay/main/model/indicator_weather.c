@@ -11,6 +11,7 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "cJSON.h"
+#include "esp_sntp.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -24,6 +25,7 @@ static const char *TAG = "weather";
 #define NVS_KEY_LAT        "lat"
 #define NVS_KEY_LON        "lon"
 #define NVS_KEY_CITY       "city"
+#define NVS_KEY_NTP        "ntp"
 
 /* --- Open-Meteo endpointy (HTTPS, bez klucza) --- */
 #define URL_GEOCODE  "https://geocoding-api.open-meteo.com/v1/search?count=%d&language=pl&format=json&name=%s"
@@ -42,6 +44,7 @@ static struct {
 static SemaphoreHandle_t s_http_mutex;          /* serializuje uzycie bufora HTTP */
 static char             *s_http_buf;            /* bufor odpowiedzi (PSRAM/heap)  */
 static int               s_http_len;
+static char              s_ntp_server[64];      /* musi zyc: lwip sntp trzyma wskaznik */
 
 /* ========================================================================
  *  HTTP GET z akumulacja odpowiedzi (jak w indicator_city.c)
@@ -362,6 +365,18 @@ int indicator_weather_init(void)
 
     __location_load();
 
+    /* wczytaj zapisany serwer NTP (jesli byl ustawiony) i zastosuj */
+    {
+        nvs_handle_t h;
+        if (nvs_open(NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+            size_t sz = sizeof(s_ntp_server);
+            if (nvs_get_str(h, NVS_KEY_NTP, s_ntp_server, &sz) == ESP_OK && s_ntp_server[0]) {
+                __ntp_apply();
+            }
+            nvs_close(h);
+        }
+    }
+
     ESP_ERROR_CHECK(esp_event_handler_register_with(
         view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_CITY_SEARCH_REQ,
         __event_handler, NULL));
@@ -377,6 +392,43 @@ int indicator_weather_init(void)
 
     xTaskCreatePinnedToCore(__weather_task, "weather", 6144, NULL, 4, NULL, tskNO_AFFINITY);
     return 0;
+}
+
+/* ========================================================================
+ *  Serwer NTP
+ * ==================================================================== */
+static void __ntp_apply(void)
+{
+    if (!s_ntp_server[0]) return;
+    ESP_LOGI(TAG, "Ustawiam serwer NTP: %s", s_ntp_server);
+    sntp_stop();
+    sntp_setservername(0, s_ntp_server);   /* uwaga: sntp trzyma WSKAZNIK na s_ntp_server */
+    sntp_init();
+}
+
+void indicator_weather_set_ntp(const char *server)
+{
+    if (!server || !server[0]) return;
+    strncpy(s_ntp_server, server, sizeof(s_ntp_server) - 1);
+    s_ntp_server[sizeof(s_ntp_server) - 1] = '\0';
+
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, NVS_KEY_NTP, s_ntp_server);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    __ntp_apply();
+}
+
+void indicator_weather_get_ntp(char *out, size_t out_sz)
+{
+    if (!out || out_sz == 0) return;
+    out[0] = '\0';
+    if (s_ntp_server[0]) {
+        strncpy(out, s_ntp_server, out_sz - 1);
+        out[out_sz - 1] = '\0';
+    }
 }
 
 /* ========================================================================
