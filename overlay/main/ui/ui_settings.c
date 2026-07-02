@@ -16,6 +16,7 @@
 static const char *TAG = "ui_settings";
 
 static lv_obj_t *scr;            /* ekran ustawien */
+lv_obj_t *g_ui_settings = NULL;  /* widoczny dla ui.c (powrot z WiFi) */
 static lv_obj_t *ta_city;        /* pole wyszukiwania miasta */
 static lv_obj_t *kb;             /* klawiatura ekranowa      */
 static lv_obj_t *results_box;    /* kontener na wyniki miast */
@@ -83,12 +84,12 @@ static void ta_event_cb(lv_event_t *e)
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
         /* zmniejsz obszar tresci nad klawiatura i przewin pole do widoku */
-        if (cont) lv_obj_set_height(cont, 195);
+        if (cont) lv_obj_set_height(cont, 200);
         lv_obj_scroll_to_view_recursive(ta, LV_ANIM_ON);
     } else if (code == LV_EVENT_DEFOCUSED || code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
         lv_keyboard_set_textarea(kb, NULL);
-        if (cont) lv_obj_set_height(cont, 300);   /* przywroc pelna wysokosc */
+        if (cont) lv_obj_set_height(cont, 410);   /* przywroc pelna wysokosc */
     }
 }
 
@@ -106,11 +107,12 @@ static void result_btn_cb(lv_event_t *e)
     lv_textarea_set_text(ta_city, item.name);
     set_status("");
     lv_obj_clean(results_box);
+    lv_obj_add_flag(results_box, LV_OBJ_FLAG_HIDDEN);   /* schowaj nakladke */
 
     /* schowaj klawiature i przywroc uklad (przyciski wracaja na miejsce) */
     lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
     lv_keyboard_set_textarea(kb, NULL);
-    if (cont) { lv_obj_set_height(cont, 300); lv_obj_scroll_to_y(cont, 0, LV_ANIM_ON); }
+    if (cont) { lv_obj_set_height(cont, 410); lv_obj_scroll_to_y(cont, 0, LV_ANIM_ON); }
 }
 
 /* --- klik "Szukaj" --- */
@@ -137,7 +139,12 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
     s_last_list = *l;
 
     lv_obj_clean(results_box);
-    if (l->cnt == 0) { set_status("Nic nie znaleziono"); lv_port_sem_give(); return; }
+    if (l->cnt == 0) {
+        set_status("Nic nie znaleziono");
+        lv_obj_add_flag(results_box, LV_OBJ_FLAG_HIDDEN);
+        lv_port_sem_give();
+        return;
+    }
     set_status("Wybierz miasto:");
 
     for (int i = 0; i < l->cnt; i++) {
@@ -158,6 +165,9 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
         lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
         lv_obj_set_style_text_font(lbl, &ui_font_pl_16, 0);
     }
+    /* pokaz nakladke nad pozostalymi ustawieniami */
+    lv_obj_clear_flag(results_box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(results_box);
     lv_port_sem_give();
 }
 
@@ -186,6 +196,7 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *txt, lv_event_cb_t cb
 static void build(void)
 {
     scr = lv_obj_create(NULL);
+    g_ui_settings = scr;   /* dla powrotu z ekranu WiFi */
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0E131A), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
@@ -207,7 +218,7 @@ static void build(void)
 
     /* --- tresc (przewijalna kolumna) --- */
     cont = lv_obj_create(scr);
-    lv_obj_set_size(cont, 452, 300);
+    lv_obj_set_size(cont, 452, 410);   /* pelna wysokosc ekranu */
     lv_obj_align(cont, LV_ALIGN_TOP_MID, 0, 60);
     lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cont, 0, 0);
@@ -247,13 +258,23 @@ static void build(void)
     lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x9AA5B1), 0);
     lv_obj_set_style_text_font(status_lbl, &ui_font_pl_16, 0);
 
+    /* Wyniki wyszukiwania jako NAKLADKA (floating) - nie spycha innych ustawien.
+     * Kotwiczone pod wierszem miasta; nieprzezroczyste tlo; ukryte gdy puste. */
     results_box = lv_obj_create(cont);
-    lv_obj_set_size(results_box, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(results_box, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(results_box, 0, 0);
-    lv_obj_set_style_pad_all(results_box, 0, 0);
+    lv_obj_add_flag(results_box, LV_OBJ_FLAG_FLOATING);   /* ignorowane przez uklad kolumny */
+    lv_obj_set_width(results_box, 452);
+    lv_obj_set_height(results_box, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_height(results_box, 250, 0);
+    lv_obj_set_style_bg_color(results_box, lv_color_hex(0x161C24), 0);
+    lv_obj_set_style_bg_opa(results_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(results_box, 10, 0);
+    lv_obj_set_style_border_width(results_box, 1, 0);
+    lv_obj_set_style_border_color(results_box, lv_color_hex(0x2A3440), 0);
+    lv_obj_set_style_pad_all(results_box, 6, 0);
     lv_obj_set_flex_flow(results_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(results_box, 6, 0);
+    lv_obj_align_to(results_box, row, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 6);
+    lv_obj_add_flag(results_box, LV_OBJ_FLAG_HIDDEN);
 
     /* 4) Sekcja: Wyswietlacz */
     section_label(cont, "Wyświetlacz");

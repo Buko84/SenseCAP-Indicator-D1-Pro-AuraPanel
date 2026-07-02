@@ -134,11 +134,40 @@ def main():
     ]:
         n += t.count(old)
         t = t.replace(old, new)
+
+    # powrot z ekranu WiFi -> wroc do MOJEGO ekranu ustawien (a nie do domu).
+    # g_ui_settings (z ui_settings.c, deklarowany w ui_home.h) jest NULL na
+    # pierwszym starcie -> wtedy zachowanie stockowe (ui_screen_last).
+    wifi_back_old = "_ui_screen_change( ui_screen_last, LV_SCR_LOAD_ANIM_OVER_TOP, 200, 0);"
+    wifi_back_new = "_ui_screen_change( g_ui_settings ? g_ui_settings : ui_screen_last, LV_SCR_LOAD_ANIM_OVER_TOP, 200, 0);"
+    if wifi_back_old in t:
+        t = t.replace(wifi_back_old, wifi_back_new, 1)
+        print("ui.c: powrot z WiFi -> ekran ustawien")
+    else:
+        die("ui.c: nie znaleziono powrotu z ekranu WiFi")
+
     write(p, t)
 
     if "_ui_screen_change( ui_home," not in t:
         die("ui.c: nie udalo sie przekierowac nawigacji na ui_home")
     print("ui.c: przekierowano nawigacje 'do domu' na ui_home (%d zmian w tym runie)" % n)
+
+    # ------------------------------------------------------------------
+    # 5) indicator_city.c -> nie nadpisuj strefy surowym offsetem z IP
+    #    ("UTC-2.0", bez regul DST). Strefe ustawia uzytkownik (ui_time)
+    #    pelnym lancuchem POSIX, wiec czas letni liczy sie automatycznie.
+    # ------------------------------------------------------------------
+    p = os.path.join(main_dir, "model", "indicator_city.c")
+    t = read(p)
+    city_old = "indicator_time_net_zone_set( zone_str );"
+    if city_old in t:
+        t = replace_once(t, city_old,
+                          "(void)zone_str; /* strefe ustawia uzytkownik (POSIX+DST) */",
+                          "indicator_city.c (strefa z IP)")
+        write(p, t)
+        print("indicator_city.c: wylaczono nadpisywanie strefy z IP")
+    else:
+        print("indicator_city.c: brak wpisu strefy z IP (pomijam)")
 
     print("APPLY-OVERLAY: OK")
 

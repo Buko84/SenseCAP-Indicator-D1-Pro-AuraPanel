@@ -1,4 +1,5 @@
 #include "ui_home.h"
+#include "ui_time.h"
 #include "ui_settings.h"
 #include "ui_forecast.h"
 #include "ui_font_pl.h"
@@ -246,7 +247,11 @@ static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
         break;
     }
     case VIEW_EVENT_TIME_CFG_UPDATE: {
-        if (data) g_time_cfg = *(struct view_data_time_cfg *)data;
+        if (data) {
+            g_time_cfg = *(struct view_data_time_cfg *)data;
+            /* odtworz strefe POSIX (net_zone nie jest w NVS, ale indeks tak) */
+            if (g_time_cfg.auto_update_zone) ui_time_reapply_zone((int)g_time_cfg.zone);
+        }
         break;
     }
     default:

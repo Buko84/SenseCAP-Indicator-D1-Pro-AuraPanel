@@ -5,6 +5,7 @@
 #include "ui.h"             /* ui_img_back_png */
 #include "view_data.h"
 #include "indicator_weather.h"  /* NTP get/set */
+#include "indicator_time.h"     /* indicator_time_net_zone_set (strefa POSIX z DST) */
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -18,9 +19,39 @@ static const char *TAG = "ui_time";
 #define YEAR_MIN 2024
 #define YEAR_MAX 2043
 
+/* Nazwane strefy -> pelne lancuchy POSIX z regulami DST.
+ * Dzieki temu biblioteka C sama przelacza czas letni/zimowy wg dat,
+ * a indeks wybranej strefy zapisujemy w cfg.zone (trafia do NVS). */
+typedef struct { const char *name; const char *posix; } tz_entry_t;
+static const tz_entry_t TZ_TABLE[] = {
+    { "Polska / Europa Środkowa",   "CET-1CEST,M3.5.0,M10.5.0/3"    },
+    { "Europa Zach. (Londyn)",      "GMT0BST,M3.5.0/1,M10.5.0"      },
+    { "Europa Wsch. (Ateny/Kijów)", "EET-2EEST,M3.5.0/3,M10.5.0/4"  },
+    { "UTC (bez zmiany czasu)",     "UTC0"                          },
+    { "USA Wschód (ET)",            "EST5EDT,M3.2.0,M11.1.0"        },
+    { "USA Środkowy (CT)",          "CST6CDT,M3.2.0,M11.1.0"        },
+    { "USA Górski (MT)",            "MST7MDT,M3.2.0,M11.1.0"        },
+    { "USA Zachód (PT)",            "PST8PDT,M3.2.0,M11.1.0"        },
+    { "Moskwa (MSK)",               "MSK-3"                         },
+    { "Dubaj (GST)",                "GST-4"                         },
+    { "Indie (IST)",                "IST-5:30"                      },
+    { "Chiny (CST)",                "CST-8"                         },
+    { "Japonia (JST)",              "JST-9"                         },
+    { "Australia Wsch. (AEST)",     "AEST-10AEDT,M10.1.0,M4.1.0/3"  },
+};
+#define TZ_COUNT ((int)(sizeof(TZ_TABLE) / sizeof(TZ_TABLE[0])))
+
+/* Ponowne zastosowanie strefy po restarcie (net_zone nie jest zapisywane w NVS,
+ * ale indeks tak) - wolane z ui_home po odebraniu zapisanej konfiguracji. */
+void ui_time_reapply_zone(int idx)
+{
+    if (idx < 0 || idx >= TZ_COUNT) return;
+    indicator_time_net_zone_set((char *)TZ_TABLE[idx].posix);
+}
+
 static lv_obj_t *scr;
 static lv_obj_t *cont;
-static lv_obj_t *sw_24h, *sw_auto, *sw_dst;
+static lv_obj_t *sw_24h, *sw_auto;
 static lv_obj_t *dd_zone;
 static lv_obj_t *manual_box;
 static lv_obj_t *rl_year, *rl_month, *rl_day, *rl_hour, *rl_min;
@@ -74,9 +105,12 @@ static void apply_cb(lv_event_t *e)
     memset(&cfg, 0, sizeof(cfg));
     cfg.time_format_24   = lv_obj_has_state(sw_24h,  LV_STATE_CHECKED);
     cfg.auto_update      = lv_obj_has_state(sw_auto, LV_STATE_CHECKED);
-    cfg.daylight         = lv_obj_has_state(sw_dst,  LV_STATE_CHECKED);
-    cfg.auto_update_zone = false;                                   /* uzyj recznej strefy */
-    cfg.zone             = (int8_t)((int)lv_dropdown_get_selected(dd_zone) - 12);
+    cfg.daylight         = false;                 /* DST liczone automatycznie z regul POSIX */
+    cfg.auto_update_zone = true;                  /* model uzyje pelnego lancucha strefy (net_zone) */
+
+    int zi = (int)lv_dropdown_get_selected(dd_zone);
+    if (zi < 0 || zi >= TZ_COUNT) zi = 0;
+    cfg.zone = (int8_t)zi;                         /* zapisujemy INDEKS strefy (trafia do NVS) */
 
     if (!cfg.auto_update) {
         int y  = YEAR_MIN + (int)lv_roller_get_selected(rl_year);
@@ -88,13 +122,16 @@ static void apply_cb(lv_event_t *e)
         cfg.set_time = true;
     }
 
+    /* ustaw pelna strefe POSIX (z regulami DST) -> libc sam liczy czas letni/zimowy */
+    indicator_time_net_zone_set((char *)TZ_TABLE[zi].posix);
+
     /* serwer NTP */
     const char *ntp = lv_textarea_get_text(ta_ntp);
     if (ntp && ntp[0]) indicator_weather_set_ntp(ntp);
 
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                       VIEW_EVENT_TIME_CFG_APPLY, &cfg, sizeof(cfg), portMAX_DELAY);
-    ESP_LOGI(TAG, "zastosowano ustawienia czasu (auto=%d zone=%d)", cfg.auto_update, cfg.zone);
+    ESP_LOGI(TAG, "zastosowano ustawienia czasu (auto=%d strefa=%s)", cfg.auto_update, TZ_TABLE[zi].posix);
 
     ui_settings_open();   /* wroc do ustawien */
 }
@@ -179,21 +216,24 @@ static void build(void)
     if (g_time_cfg.auto_update) lv_obj_add_state(sw_auto, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_auto, auto_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    /* DST */
-    lv_obj_t *r3; row(cont, "Czas letni (DST)", &r3);
-    sw_dst = lv_switch_create(r3);
-    if (g_time_cfg.daylight) lv_obj_add_state(sw_dst, LV_STATE_CHECKED);
-
-    /* strefa czasowa */
+    /* strefa czasowa (nazwane strefy z automatycznym czasem letnim) */
     lv_obj_t *r4; row(cont, "Strefa czasowa", &r4);
     dd_zone = lv_dropdown_create(r4);
-    lv_obj_set_style_text_font(dd_zone, &lv_font_montserrat_18, 0);  /* strzalka jako symbol */
-    lv_dropdown_set_options(dd_zone,
-        "UTC-12\nUTC-11\nUTC-10\nUTC-9\nUTC-8\nUTC-7\nUTC-6\nUTC-5\nUTC-4\nUTC-3\nUTC-2\nUTC-1\n"
-        "UTC+0\nUTC+1\nUTC+2\nUTC+3\nUTC+4\nUTC+5\nUTC+6\nUTC+7\nUTC+8\nUTC+9\nUTC+10\nUTC+11\nUTC+12\nUTC+13\nUTC+14");
-    lv_obj_set_width(dd_zone, 120);
-    int zsel = (int)g_time_cfg.zone + 12; if (zsel < 0) zsel = 12; if (zsel > 26) zsel = 26;
-    lv_dropdown_set_selected(dd_zone, zsel);
+    lv_dropdown_set_symbol(dd_zone, NULL);   /* bez strzalki-symbolu (byl kwadracik w foncie PL) */
+    {
+        char opts[512]; opts[0] = '\0';
+        for (int i = 0; i < TZ_COUNT; i++) {
+            strcat(opts, TZ_TABLE[i].name);
+            if (i < TZ_COUNT - 1) strcat(opts, "\n");
+        }
+        lv_dropdown_set_options(dd_zone, opts);
+    }
+    lv_obj_set_width(dd_zone, 250);
+    {
+        int zsel = (int)g_time_cfg.zone;
+        if (zsel < 0 || zsel >= TZ_COUNT) zsel = 0;   /* domyslnie Polska */
+        lv_dropdown_set_selected(dd_zone, zsel);
+    }
 
     /* serwer NTP */
     lv_obj_t *r5; row(cont, "Serwer NTP", &r5);
