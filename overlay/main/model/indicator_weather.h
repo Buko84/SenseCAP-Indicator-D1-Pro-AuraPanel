@@ -45,6 +45,23 @@ struct view_data_weather {
     bool  is_day;
 };
 
+#define WEATHER_FORECAST_DAYS 3
+
+struct view_data_weather_day {
+    char  date[12];       /* "2026-07-02" */
+    float tmax;
+    float tmin;
+    int   weather_code;
+};
+
+/* Prognoza kilkudniowa */
+struct view_data_weather_forecast {
+    bool  valid;
+    char  city[64];
+    int   days;
+    struct view_data_weather_day d[WEATHER_FORECAST_DAYS];
+};
+
 /* --------------------------------------------------------------------------
  *  WAZNE: dopisz te 4 pozycje do enuma w view_data.h TUZ PRZED VIEW_EVENT_ALL:
  *
@@ -52,6 +69,7 @@ struct view_data_weather {
  *      VIEW_EVENT_CITY_SEARCH_REQ,     // char name[.]  (zapytanie o miasta)
  *      VIEW_EVENT_CITY_SEARCH_RESULT,  // struct view_data_city_list
  *      VIEW_EVENT_CITY_SELECT,         // struct view_data_city_item (wybor)
+ *      VIEW_EVENT_WEATHER_FORECAST,    // struct view_data_weather_forecast
  *
  *  Kolejnosc/wartosci enuma sa uzywane jako event id, wiec dopisujemy je
  *  na koncu (przed VIEW_EVENT_ALL), zeby nie przesunac istniejacych.

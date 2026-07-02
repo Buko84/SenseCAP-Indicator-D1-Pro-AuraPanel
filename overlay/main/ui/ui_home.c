@@ -1,5 +1,7 @@
 #include "ui_home.h"
 #include "ui_settings.h"
+#include "ui_forecast.h"
+#include "ui_font_pl.h"
 #include "ui.h"                 /* daje LV_IMG_DECLARE(...) dla ikon oraz ui_screen_setting */
 #include "view_data.h"
 #include "indicator_weather.h"
@@ -93,6 +95,12 @@ static const lv_img_dsc_t *wifi_img_for(bool connected, int8_t rssi)
 static void gear_cb(lv_event_t *e)
 {
     ui_settings_open();
+}
+
+/* Klik w pogode (dol ekranu) -> prognoza 3-dniowa */
+static void weather_row_cb(lv_event_t *e)
+{
+    ui_forecast_open();
 }
 
 /* "Straznik domu": stockowy firmware po starcie i po roznych zdarzeniach
@@ -194,6 +202,7 @@ static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
 lv_obj_t *ui_home_create(void)
 {
     ui_home = lv_obj_create(NULL);
+    lv_obj_set_style_text_font(ui_home, &ui_font_pl_18, 0);  /* polskie znaki */
     lv_obj_clear_flag(ui_home, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_home, lv_color_hex(0x0E131A), 0);
     lv_obj_set_style_bg_opa(ui_home, LV_OPA_COVER, 0);
@@ -225,7 +234,7 @@ lv_obj_t *ui_home_create(void)
     make_tile(grid, &ui_img_co2_png,        "CO2",         "ppm",  &lbl_co2);
     make_tile(grid, &ui_img_tvoc_png,       "TVOC",        "ppb",  &lbl_tvoc);
     make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", &lbl_temp);
-    make_tile(grid, &ui_img_humidity_1_png, "Wilgotnosc",  "%",    &lbl_hum);
+    make_tile(grid, &ui_img_humidity_1_png, "Wilgotność",  "%",    &lbl_hum);
 
     /* ---- dol ekranu, po srodku: godzina ---- */
     lbl_time = lv_label_create(ui_home);
@@ -239,6 +248,9 @@ lv_obj_t *ui_home_create(void)
     lv_obj_remove_style_all(wx_row);
     lv_obj_set_size(wx_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_align(wx_row, LV_ALIGN_BOTTOM_MID, 0, -16);
+    lv_obj_add_flag(wx_row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(wx_row, 10);
+    lv_obj_add_event_cb(wx_row, weather_row_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_set_flex_flow(wx_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(wx_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(wx_row, 10, 0);

@@ -3,6 +3,7 @@
 #include "ui.h"                 /* ui_img_back_png, ui_screen_wifi, ui_screen_date_time */
 #include "view_data.h"
 #include "indicator_weather.h"
+#include "ui_font_pl.h"
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -145,6 +146,7 @@ static void build(void)
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x0E131A), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_font(scr, &ui_font_pl_18, 0);  /* polskie znaki na liscie miast */
 
     /* --- gorny pasek: tytul + powrot --- */
     lv_obj_t *title = lv_label_create(scr);

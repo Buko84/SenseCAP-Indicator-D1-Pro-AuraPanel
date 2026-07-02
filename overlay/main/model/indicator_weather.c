@@ -29,7 +29,7 @@ static const char *TAG = "weather";
 
 /* --- Open-Meteo endpointy (HTTPS, bez klucza) --- */
 #define URL_GEOCODE  "https://geocoding-api.open-meteo.com/v1/search?count=%d&language=pl&format=json&name=%s"
-#define URL_FORECAST "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code,is_day&timezone=auto"
+#define URL_FORECAST "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=3&timezone=auto"
 
 /* --- stan modulu --- */
 static struct {
@@ -45,6 +45,8 @@ static SemaphoreHandle_t s_http_mutex;          /* serializuje uzycie bufora HTT
 static char             *s_http_buf;            /* bufor odpowiedzi (PSRAM/heap)  */
 static int               s_http_len;
 static char              s_ntp_server[64];      /* musi zyc: lwip sntp trzyma wskaznik */
+
+static void __ntp_apply(void);   /* uzyte w init przed definicja */
 
 /* ========================================================================
  *  HTTP GET z akumulacja odpowiedzi (jak w indicator_city.c)
@@ -264,6 +266,9 @@ void indicator_weather_refresh(void)
     struct view_data_weather wx = {0};
     strncpy(wx.city, s_ctx.city, sizeof(wx.city) - 1);
 
+    struct view_data_weather_forecast fc = {0};
+    strncpy(fc.city, s_ctx.city, sizeof(fc.city) - 1);
+
     xSemaphoreTake(s_http_mutex, portMAX_DELAY);
     if (__http_get(url) == 0 && s_http_len > 0) {
         cJSON *root = cJSON_Parse(s_http_buf);
@@ -278,6 +283,29 @@ void indicator_weather_refresh(void)
                 if (cJSON_IsNumber(dy)) wx.is_day       = (dy->valueint != 0);
                 wx.valid = true;
             }
+            /* prognoza dzienna */
+            cJSON *daily = cJSON_GetObjectItem(root, "daily");
+            if (daily) {
+                cJSON *jdate = cJSON_GetObjectItem(daily, "time");
+                cJSON *jmax  = cJSON_GetObjectItem(daily, "temperature_2m_max");
+                cJSON *jmin  = cJSON_GetObjectItem(daily, "temperature_2m_min");
+                cJSON *jcode = cJSON_GetObjectItem(daily, "weather_code");
+                int n = cJSON_GetArraySize(jdate);
+                for (int i = 0; i < n && fc.days < WEATHER_FORECAST_DAYS; i++) {
+                    struct view_data_weather_day *d = &fc.d[fc.days];
+                    cJSON *ds = cJSON_GetArrayItem(jdate, i);
+                    cJSON *mx = cJSON_GetArrayItem(jmax, i);
+                    cJSON *mn = cJSON_GetArrayItem(jmin, i);
+                    cJSON *cc = cJSON_GetArrayItem(jcode, i);
+                    if (ds && ds->valuestring)
+                        strncpy(d->date, ds->valuestring, sizeof(d->date) - 1);
+                    if (cJSON_IsNumber(mx)) d->tmax = (float)mx->valuedouble;
+                    if (cJSON_IsNumber(mn)) d->tmin = (float)mn->valuedouble;
+                    if (cJSON_IsNumber(cc)) d->weather_code = cc->valueint;
+                    fc.days++;
+                }
+                if (fc.days > 0) fc.valid = true;
+            }
             cJSON_Delete(root);
         }
     }
@@ -287,6 +315,10 @@ void indicator_weather_refresh(void)
         ESP_LOGI(TAG, "Pogoda %s: %.1f C, kod %d", wx.city, wx.temperature, wx.weather_code);
         esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                           VIEW_EVENT_WEATHER, &wx, sizeof(wx), portMAX_DELAY);
+    }
+    if (fc.valid) {
+        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                          VIEW_EVENT_WEATHER_FORECAST, &fc, sizeof(fc), portMAX_DELAY);
     }
 }
 
@@ -438,15 +470,15 @@ const char *indicator_weather_code_desc(int c)
 {
     switch (c) {
     case 0:                 return "Bezchmurnie";
-    case 1: case 2:         return "Czesciowe zachmurzenie";
+    case 1: case 2:         return "Częściowe zachmurzenie";
     case 3:                 return "Pochmurno";
-    case 45: case 48:       return "Mgla";
-    case 51: case 53: case 55: return "Mzawka";
+    case 45: case 48:       return "Mgła";
+    case 51: case 53: case 55: return "Mżawka";
     case 61: case 63: case 65: return "Deszcz";
-    case 66: case 67:       return "Marznacy deszcz";
-    case 71: case 73: case 75: case 77: return "Snieg";
+    case 66: case 67:       return "Marznący deszcz";
+    case 71: case 73: case 75: case 77: return "Śnieg";
     case 80: case 81: case 82: return "Przelotny deszcz";
-    case 85: case 86:       return "Przelotny snieg";
+    case 85: case 86:       return "Przelotny śnieg";
     case 95:                return "Burza";
     case 96: case 99:       return "Burza z gradem";
     default:                return "---";

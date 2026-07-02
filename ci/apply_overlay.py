@@ -50,6 +50,7 @@ def main():
         anchor = "    VIEW_EVENT_ALL,"
         addition = (
             "    VIEW_EVENT_WEATHER,             // struct view_data_weather\n"
+            "    VIEW_EVENT_WEATHER_FORECAST,    // struct view_data_weather_forecast\n"
             "    VIEW_EVENT_CITY_SEARCH_REQ,     // char name[.]\n"
             "    VIEW_EVENT_CITY_SEARCH_RESULT,  // struct view_data_city_list\n"
             "    VIEW_EVENT_CITY_SELECT,         // struct view_data_city_item\n"
