@@ -12,6 +12,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 static const char *TAG = "ui_home";
 
@@ -45,9 +46,27 @@ static bool s_time_24h = true;
 
 /* Jeden kafelek: panel + ikonka + tytul + duza wartosc + jednostka.
  * Zwraca panel, a przez out_value oddaje etykiete wartosci do aktualizacji. */
+/* Klik w kafel -> ekran historii/wykresu (stockowy ui_screen_sensor_chart).
+ * Wysylamy zadanie historii dla danego czujnika, model odsyla dane a stockowy
+ * handler aktualizuje wykres; my ladujemy ekran wykresu. */
+static void tile_cb(lv_event_t *e)
+{
+    enum sensor_data_type type = (enum sensor_data_type)(intptr_t)lv_event_get_user_data(e);
+    int32_t ev = VIEW_EVENT_SENSOR_CO2_HISTORY;
+    switch (type) {
+    case SENSOR_DATA_CO2:      ev = VIEW_EVENT_SENSOR_CO2_HISTORY;      break;
+    case SENSOR_DATA_TVOC:     ev = VIEW_EVENT_SENSOR_TVOC_HISTORY;     break;
+    case SENSOR_DATA_TEMP:     ev = VIEW_EVENT_SENSOR_TEMP_HISTORY;     break;
+    case SENSOR_DATA_HUMIDITY: ev = VIEW_EVENT_SENSOR_HUMIDITY_HISTORY; break;
+    default: break;
+    }
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, ev, NULL, 0, portMAX_DELAY);
+    if (ui_screen_sensor_chart) lv_disp_load_scr(ui_screen_sensor_chart);
+}
+
 static lv_obj_t *make_tile(lv_obj_t *parent, const lv_img_dsc_t *icon,
                            const char *title, const char *unit,
-                           lv_obj_t **out_value)
+                           enum sensor_data_type type, lv_obj_t **out_value)
 {
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_set_size(card, 200, 132);
@@ -59,6 +78,8 @@ static lv_obj_t *make_tile(lv_obj_t *parent, const lv_img_dsc_t *icon,
     lv_obj_set_style_shadow_width(card, 12, 0);
     lv_obj_set_style_shadow_opa(card, LV_OPA_20, 0);
     lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(card, tile_cb, LV_EVENT_CLICKED, (void *)(intptr_t)type);
 
     /* ikonka w lewym gornym rogu */
     lv_obj_t *ic = lv_img_create(card);
@@ -267,10 +288,10 @@ lv_obj_t *ui_home_create(void)
         LV_FLEX_ALIGN_SPACE_EVENLY);  /* odstepy miedzy wierszami */
     lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
 
-    make_tile(grid, &ui_img_co2_png,        "CO2",         "ppm",  &lbl_co2);
-    make_tile(grid, &ui_img_tvoc_png,       "TVOC",        "ppb",  &lbl_tvoc);
-    make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", &lbl_temp);
-    make_tile(grid, &ui_img_humidity_1_png, "Wilgotność",  "%",    &lbl_hum);
+    make_tile(grid, &ui_img_co2_png,        "CO2",         "ppm",  SENSOR_DATA_CO2,      &lbl_co2);
+    make_tile(grid, &ui_img_tvoc_png,       "TVOC",        "ppb",  SENSOR_DATA_TVOC,     &lbl_tvoc);
+    make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", SENSOR_DATA_TEMP,  &lbl_temp);
+    make_tile(grid, &ui_img_humidity_1_png, "Wilgotność",  "%",    SENSOR_DATA_HUMIDITY, &lbl_hum);
 
     /* ---- dol ekranu, po srodku: godzina + data ---- */
     lv_obj_t *dt_row = lv_obj_create(ui_home);

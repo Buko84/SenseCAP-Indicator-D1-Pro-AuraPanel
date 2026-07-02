@@ -33,6 +33,16 @@ static const char *pl_weekday(const char *date)
     return names[w];
 }
 
+static const char *pl_month_gen(int m)
+{
+    static const char *mn[12] = {
+        "stycznia","lutego","marca","kwietnia","maja","czerwca",
+        "lipca","sierpnia","września","października","listopada","grudnia"
+    };
+    if (m < 1 || m > 12) return "";
+    return mn[m - 1];
+}
+
 static void back_cb(lv_event_t *e) { lv_disp_load_scr(ui_home); }
 
 static void rebuild(void)
@@ -68,8 +78,19 @@ static void rebuild(void)
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
 
         /* dzien + opis */
+        /* dzien + data (np. "Czwartek, dzisiaj" / "Piątek, 03 lipca") */
         lv_obj_t *day = lv_label_create(card);
-        lv_label_set_text(day, pl_weekday(d->date));
+        char dbuf[56];
+        int yy, mm, dd;
+        if (sscanf(d->date, "%d-%d-%d", &yy, &mm, &dd) == 3) {
+            if (i == 0)
+                snprintf(dbuf, sizeof(dbuf), "%s, dzisiaj", pl_weekday(d->date));
+            else
+                snprintf(dbuf, sizeof(dbuf), "%s, %02d %s", pl_weekday(d->date), dd, pl_month_gen(mm));
+        } else {
+            snprintf(dbuf, sizeof(dbuf), "%s", pl_weekday(d->date));
+        }
+        lv_label_set_text(day, dbuf);
         lv_obj_set_style_text_color(day, lv_color_hex(0xFFFFFF), 0);
         lv_obj_align(day, LV_ALIGN_LEFT_MID, 44, -12);
 
@@ -134,6 +155,7 @@ static void build(void)
     lv_obj_set_style_border_width(list_box, 0, 0);
     lv_obj_set_flex_flow(list_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(list_box, 10, 0);
+    lv_obj_clear_flag(list_box, LV_OBJ_FLAG_SCROLLABLE);   /* miesci sie -> bez scrolla */
 
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE,
                                     VIEW_EVENT_WEATHER_FORECAST,

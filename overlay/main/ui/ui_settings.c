@@ -102,11 +102,15 @@ static void result_btn_cb(lv_event_t *e)
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                       VIEW_EVENT_CITY_SELECT, &item, sizeof(item), portMAX_DELAY);
 
-    char msg[96];
-    snprintf(msg, sizeof(msg), "Wybrano: %s (pobieram pogode...)", item.name);
-    set_status(msg);
-    /* wyczysc liste wynikow */
+    /* wybrana nazwa trafia do pola tekstowego zamiast zapytania */
+    lv_textarea_set_text(ta_city, item.name);
+    set_status("");
     lv_obj_clean(results_box);
+
+    /* schowaj klawiature i przywroc uklad (przyciski wracaja na miejsce) */
+    lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    lv_keyboard_set_textarea(kb, NULL);
+    if (cont) { lv_obj_set_height(cont, 300); lv_obj_scroll_to_y(cont, 0, LV_ANIM_ON); }
 }
 
 /* --- klik "Szukaj" --- */
@@ -152,6 +156,7 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
                      l->items[i].name, l->items[i].country);
         lv_label_set_text(lbl, row);
         lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(lbl, &ui_font_pl_16, 0);
     }
     lv_port_sem_give();
 }
@@ -208,9 +213,14 @@ static void build(void)
     lv_obj_set_style_border_width(cont, 0, 0);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cont, 8, 0);
+    lv_obj_set_scroll_dir(cont, LV_DIR_VER);   /* bez poziomego scrolla */
 
-    /* Sekcja: Lokalizacja / Pogoda */
-    section_label(cont, "Lokalizacja / Pogoda");
+    /* 1) WiFi  2) Czas */
+    make_button(cont, "Ustawienia WiFi", open_wifi_cb);
+    make_button(cont, "Ustawienia czasu", open_time_cb);
+
+    /* 3) Sekcja: Pogoda (wyszukiwarka miasta) */
+    section_label(cont, "Pogoda");
 
     lv_obj_t *row = lv_obj_create(cont);
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
@@ -224,6 +234,7 @@ static void build(void)
     lv_textarea_set_one_line(ta_city, true);
     lv_textarea_set_placeholder_text(ta_city, "Wpisz miasto...");
     lv_obj_set_flex_grow(ta_city, 1);
+    lv_obj_set_style_text_font(ta_city, &ui_font_pl_16, 0);
     lv_obj_add_event_cb(ta_city, ta_event_cb, LV_EVENT_ALL, NULL);
 
     lv_obj_t *search = lv_btn_create(row);
@@ -234,6 +245,7 @@ static void build(void)
     status_lbl = lv_label_create(cont);
     lv_label_set_text(status_lbl, "");
     lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x9AA5B1), 0);
+    lv_obj_set_style_text_font(status_lbl, &ui_font_pl_16, 0);
 
     results_box = lv_obj_create(cont);
     lv_obj_set_size(results_box, LV_PCT(100), LV_SIZE_CONTENT);
@@ -243,11 +255,7 @@ static void build(void)
     lv_obj_set_flex_flow(results_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(results_box, 6, 0);
 
-    /* Przejscia do ekranow */
-    make_button(cont, "Ustawienia WiFi", open_wifi_cb);
-    make_button(cont, "Czas / data / strefa", open_time_cb);
-
-    /* Sekcja: Wyswietlacz */
+    /* 4) Sekcja: Wyswietlacz */
     section_label(cont, "Wyświetlacz");
 
     /* jasnosc */
@@ -296,6 +304,7 @@ static void build(void)
     lv_obj_set_style_text_color(spl, lv_color_hex(0xFFFFFF), 0);
     dd_sleep = lv_dropdown_create(sleep_row);
     lv_dropdown_set_options(dd_sleep, "1\n2\n5\n10\n15\n30");
+    lv_obj_set_style_text_font(dd_sleep, &lv_font_montserrat_18, 0);  /* strzalka jako symbol, nie kwadracik */
     lv_obj_set_width(dd_sleep, 90);
     /* wybierz najblizsza wartosc z zapisanej konfiguracji */
     {

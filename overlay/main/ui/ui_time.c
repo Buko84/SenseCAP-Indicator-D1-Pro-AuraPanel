@@ -147,7 +147,7 @@ static void build(void)
     lv_obj_set_style_text_font(scr, &ui_font_pl_18, 0);
 
     lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Czas / data / strefa");
+    lv_label_set_text(title, "Ustawienia czasu");
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 16, 12);
@@ -166,6 +166,7 @@ static void build(void)
     lv_obj_set_style_border_width(cont, 0, 0);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cont, 6, 0);
+    lv_obj_set_scroll_dir(cont, LV_DIR_VER);
 
     /* 24h */
     lv_obj_t *r1; row(cont, "Format 24-godzinny", &r1);
@@ -186,6 +187,7 @@ static void build(void)
     /* strefa czasowa */
     lv_obj_t *r4; row(cont, "Strefa czasowa", &r4);
     dd_zone = lv_dropdown_create(r4);
+    lv_obj_set_style_text_font(dd_zone, &lv_font_montserrat_18, 0);  /* strzalka jako symbol */
     lv_dropdown_set_options(dd_zone,
         "UTC-12\nUTC-11\nUTC-10\nUTC-9\nUTC-8\nUTC-7\nUTC-6\nUTC-5\nUTC-4\nUTC-3\nUTC-2\nUTC-1\n"
         "UTC+0\nUTC+1\nUTC+2\nUTC+3\nUTC+4\nUTC+5\nUTC+6\nUTC+7\nUTC+8\nUTC+9\nUTC+10\nUTC+11\nUTC+12\nUTC+13\nUTC+14");
