@@ -3,7 +3,7 @@
 # SenseCAP Indicator D1 Pro — AuraPanel
 
 **Clock · calendar · live sensor data · weather with a 3-day forecast**
-built end-to-end on GitHub Actions into a single `merged.bin`.
+built end-to-end on GitHub Actions into a single `aurapanel-d1pro.bin`.
 
 ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.1.4-red)
 ![Target](https://img.shields.io/badge/MCU-ESP32--S3-blue)
