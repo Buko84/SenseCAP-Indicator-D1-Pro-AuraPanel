@@ -130,22 +130,6 @@ The patcher (`ci/apply_overlay.py`) is deterministic and **fails the build loudl
 
 ---
 
-## Building (GitHub Actions)
-
-1. Create an **empty** GitHub repository and upload the contents of this folder (keeping the directory structure).
-2. Open the **Actions** tab — the build starts on `push` (or run it manually: *Run workflow*).
-3. After a green build, open the run → **Artifacts** section → download **`sensecap-indicator-merged`** (it contains `merged.bin`).
-
-Want the binary in **Releases**? Push a tag:
-
-```bash
-git tag v1.0.0 && git push --tags
-```
-
-`merged.bin` is attached to the Release automatically.
-
----
-
 ## Flashing the device
 
 `merged.bin` contains the bootloader + partition table + application, so flash it from offset **`0x0`**:
