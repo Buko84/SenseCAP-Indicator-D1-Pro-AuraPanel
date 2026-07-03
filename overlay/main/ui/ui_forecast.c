@@ -4,6 +4,7 @@
 #include "ui.h"                 /* ui_img_back_png */
 #include "view_data.h"
 #include "indicator_weather.h"
+#include "ui_i18n.h"
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -14,33 +15,22 @@
 static const char *TAG = "ui_forecast";
 
 static lv_obj_t *scr;
+static lv_obj_t *title_lbl;
 static lv_obj_t *city_lbl;
 static lv_obj_t *list_box;
 static bool s_created = false;
 static struct view_data_weather_forecast s_fc;
 
-/* Nazwa dnia tygodnia (PL) z daty "YYYY-MM-DD" (algorytm Zellera, 0=Niedziela). */
-static const char *pl_weekday(const char *date)
+/* Indeks dnia tygodnia (0=niedziela) z daty "YYYY-MM-DD" (algorytm Zellera). */
+static int weekday_idx(const char *date)
 {
     int y, m, d;
-    if (!date || sscanf(date, "%d-%d-%d", &y, &m, &d) != 3) return date ? date : "";
+    if (!date || sscanf(date, "%d-%d-%d", &y, &m, &d) != 3) return 0;
     static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
     int yy = y - (m < 3);
     int w = (yy + yy/4 - yy/100 + yy/400 + t[m - 1] + d) % 7;
-    static const char *names[7] = {"Niedziela", "Poniedziałek", "Wtorek",
-                                    "Środa", "Czwartek", "Piątek", "Sobota"};
     if (w < 0) w += 7;
-    return names[w];
-}
-
-static const char *pl_month_gen(int m)
-{
-    static const char *mn[12] = {
-        "stycznia","lutego","marca","kwietnia","maja","czerwca",
-        "lipca","sierpnia","września","października","listopada","grudnia"
-    };
-    if (m < 1 || m > 12) return "";
-    return mn[m - 1];
+    return w;
 }
 
 static void back_cb(lv_event_t *e) { lv_disp_load_scr(ui_home); }
@@ -50,11 +40,12 @@ static void rebuild(void)
     if (!list_box) return;
     lv_obj_clean(list_box);
 
+    if (title_lbl) lv_label_set_text(title_lbl, T(S_FORECAST_TITLE));
     if (city_lbl) lv_label_set_text(city_lbl, s_fc.city[0] ? s_fc.city : "");
 
     if (!s_fc.valid || s_fc.days == 0) {
         lv_obj_t *l = lv_label_create(list_box);
-        lv_label_set_text(l, "Brak danych prognozy (wybierz miasto w ustawieniach).");
+        lv_label_set_text(l, T(S_NO_FORECAST));
         lv_obj_set_style_text_color(l, lv_color_hex(0x9AA5B1), 0);
         return;
     }
@@ -77,25 +68,21 @@ static void rebuild(void)
         lv_label_set_text(ic, indicator_weather_code_glyph(d->weather_code, true));
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
 
-        /* dzien + opis */
-        /* dzien + data (np. "Czwartek, dzisiaj" / "Piątek, 03 lipca") */
+        /* dzien + data (np. "Friday, 03 July" / "Piątek, 03 lipca"; dzis -> "..., today") */
         lv_obj_t *day = lv_label_create(card);
         char dbuf[56];
         int yy, mm, dd;
         if (sscanf(d->date, "%d-%d-%d", &yy, &mm, &dd) == 3) {
-            if (i == 0)
-                snprintf(dbuf, sizeof(dbuf), "%s, dzisiaj", pl_weekday(d->date));
-            else
-                snprintf(dbuf, sizeof(dbuf), "%s, %02d %s", pl_weekday(d->date), dd, pl_month_gen(mm));
+            ui_i18n_fc_day(dbuf, sizeof(dbuf), weekday_idx(d->date), dd, mm - 1, i == 0);
         } else {
-            snprintf(dbuf, sizeof(dbuf), "%s", pl_weekday(d->date));
+            snprintf(dbuf, sizeof(dbuf), "%s", ui_i18n_weekday(weekday_idx(d->date)));
         }
         lv_label_set_text(day, dbuf);
         lv_obj_set_style_text_color(day, lv_color_hex(0xFFFFFF), 0);
         lv_obj_align(day, LV_ALIGN_LEFT_MID, 44, -12);
 
         lv_obj_t *desc = lv_label_create(card);
-        lv_label_set_text(desc, indicator_weather_code_desc(d->weather_code));
+        lv_label_set_text(desc, ui_i18n_wmo_desc(d->weather_code));
         lv_obj_set_style_text_color(desc, lv_color_hex(0x9AA5B1), 0);
         lv_obj_align(desc, LV_ALIGN_LEFT_MID, 44, 12);
 
@@ -130,7 +117,8 @@ static void build(void)
     lv_obj_set_style_text_font(scr, &ui_font_pl_18, 0);   /* polskie znaki wszedzie */
 
     lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Pogoda 3-dniowa");
+    title_lbl = title;
+    lv_label_set_text(title, T(S_FORECAST_TITLE));
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 16, 12);

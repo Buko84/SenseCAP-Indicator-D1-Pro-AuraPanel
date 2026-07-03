@@ -16,6 +16,9 @@ extern struct view_data_time_cfg g_time_cfg;
 /* uchwyt ekranu ustawien - uzywany przez ui.c przy powrocie z ekranu WiFi */
 extern lv_obj_t *g_ui_settings;
 
+/* przebudowa ekranu glownego po zmianie jezyka */
+void ui_home_apply_lang(void);
+
 /* Ekran glowny w Twoim ukladzie:
  *   - 4 wysrodkowane kafelki (CO2 / TVOC / Temp / Wilgotnosc) w rownych odstepach,
  *   - na dole po srodku: godzina + (ikonka pogody, temperatura, miejscowosc),

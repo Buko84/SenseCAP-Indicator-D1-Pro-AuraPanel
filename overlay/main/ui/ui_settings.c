@@ -5,6 +5,7 @@
 #include "view_data.h"
 #include "indicator_weather.h"
 #include "ui_font_pl.h"
+#include "ui_i18n.h"
 #include "lv_port.h"
 
 #include "esp_event.h"
@@ -26,6 +27,11 @@ static lv_obj_t *sl_bright;      /* suwak jasnosci */
 static lv_obj_t *sw_alwayson;    /* przelacznik always-on */
 static lv_obj_t *sleep_row;      /* wiersz "wylacz po" (widoczny gdy !always-on) */
 static lv_obj_t *dd_sleep;       /* dropdown czasu do wygaszenia */
+static lv_obj_t *dd_lang;        /* wybor jezyka (na gorze) */
+static ui_lang_t s_built_lang = LANG_EN;
+static bool s_evt_registered = false;
+
+static void build(void);         /* uzywane przez lang_changed_cb */
 
 static const int SLEEP_MINS[6] = {1, 2, 5, 10, 15, 30};
 
@@ -119,11 +125,11 @@ static void result_btn_cb(lv_event_t *e)
 static void search_cb(lv_event_t *e)
 {
     const char *q = lv_textarea_get_text(ta_city);
-    if (!q || !q[0]) { set_status("Wpisz nazwe miasta"); return; }
+    if (!q || !q[0]) { set_status(T(S_ENTER_CITY)); return; }
     char buf[32];
     strncpy(buf, q, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
-    set_status("Szukam...");
+    set_status(T(S_SEARCHING));
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                       VIEW_EVENT_CITY_SEARCH_REQ, buf, sizeof(buf), portMAX_DELAY);
 }
@@ -140,12 +146,12 @@ static void settings_event_handler(void *arg, esp_event_base_t base, int32_t id,
 
     lv_obj_clean(results_box);
     if (l->cnt == 0) {
-        set_status("Nic nie znaleziono");
+        set_status(T(S_NOTHING_FOUND));
         lv_obj_add_flag(results_box, LV_OBJ_FLAG_HIDDEN);
         lv_port_sem_give();
         return;
     }
-    set_status("Wybierz miasto:");
+    set_status(T(S_CHOOSE_CITY));
 
     for (int i = 0; i < l->cnt; i++) {
         lv_obj_t *btn = lv_btn_create(results_box);
@@ -193,6 +199,20 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *txt, lv_event_cb_t cb
     return btn;
 }
 
+/* zmiana jezyka: zapisz, odswiez ekran glowny i przebuduj ustawienia */
+static void lang_changed_cb(lv_event_t *e)
+{
+    ui_lang_t l = (ui_lang_t)lv_dropdown_get_selected(dd_lang);
+    if (l == ui_lang_get()) return;
+    ui_lang_set(l);
+    ui_home_apply_lang();
+    lv_obj_t *old = scr;
+    build();                       /* nowy ekran w nowym jezyku */
+    s_built_lang = ui_lang_get();
+    lv_disp_load_scr(scr);
+    lv_obj_del_async(old);         /* usun stary ekran po zakonczeniu obslugi zdarzenia */
+}
+
 static void build(void)
 {
     scr = lv_obj_create(NULL);
@@ -204,7 +224,7 @@ static void build(void)
 
     /* --- gorny pasek: tytul + powrot --- */
     lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Ustawienia");
+    lv_label_set_text(title, T(S_SETTINGS_TITLE));
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 16, 14);
@@ -226,12 +246,25 @@ static void build(void)
     lv_obj_set_style_pad_row(cont, 8, 0);
     lv_obj_set_scroll_dir(cont, LV_DIR_VER);   /* bez poziomego scrolla */
 
+    /* 0) Jezyk (na samej gorze) */
+    section_label(cont, T(S_LANGUAGE));
+    dd_lang = lv_dropdown_create(cont);
+    lv_dropdown_set_symbol(dd_lang, NULL);
+    {
+        char o[64];
+        snprintf(o, sizeof(o), "%s\n%s", T(S_LANG_ENGLISH), T(S_LANG_POLISH));
+        lv_dropdown_set_options(dd_lang, o);
+    }
+    lv_dropdown_set_selected(dd_lang, (uint16_t)ui_lang_get());
+    lv_obj_set_width(dd_lang, LV_PCT(100));
+    lv_obj_add_event_cb(dd_lang, lang_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
     /* 1) WiFi  2) Czas */
-    make_button(cont, "Ustawienia WiFi", open_wifi_cb);
-    make_button(cont, "Ustawienia czasu", open_time_cb);
+    make_button(cont, T(S_WIFI_SETTINGS), open_wifi_cb);
+    make_button(cont, T(S_TIME_SETTINGS), open_time_cb);
 
     /* 3) Sekcja: Pogoda (wyszukiwarka miasta) */
-    section_label(cont, "Pogoda");
+    section_label(cont, T(S_WEATHER));
 
     lv_obj_t *row = lv_obj_create(cont);
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
@@ -243,7 +276,7 @@ static void build(void)
 
     ta_city = lv_textarea_create(row);
     lv_textarea_set_one_line(ta_city, true);
-    lv_textarea_set_placeholder_text(ta_city, "Wpisz miasto...");
+    lv_textarea_set_placeholder_text(ta_city, T(S_CITY_PLACEHOLDER));
     lv_obj_set_flex_grow(ta_city, 1);
     lv_obj_set_style_text_font(ta_city, &ui_font_pl_16, 0);
     lv_obj_add_event_cb(ta_city, ta_event_cb, LV_EVENT_ALL, NULL);
@@ -251,7 +284,7 @@ static void build(void)
     lv_obj_t *search = lv_btn_create(row);
     lv_obj_add_event_cb(search, search_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *sl = lv_label_create(search);
-    lv_label_set_text(sl, "Szukaj");
+    lv_label_set_text(sl, T(S_SEARCH));
 
     status_lbl = lv_label_create(cont);
     lv_label_set_text(status_lbl, "");
@@ -277,7 +310,7 @@ static void build(void)
     lv_obj_add_flag(results_box, LV_OBJ_FLAG_HIDDEN);
 
     /* 4) Sekcja: Wyswietlacz */
-    section_label(cont, "Wyświetlacz");
+    section_label(cont, T(S_DISPLAY));
 
     /* jasnosc */
     lv_obj_t *br_row = lv_obj_create(cont);
@@ -288,7 +321,7 @@ static void build(void)
     lv_obj_set_flex_flow(br_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(br_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *brl = lv_label_create(br_row);
-    lv_label_set_text(brl, "Jasność");
+    lv_label_set_text(brl, T(S_BRIGHTNESS));
     lv_obj_set_style_text_color(brl, lv_color_hex(0xFFFFFF), 0);
     sl_bright = lv_slider_create(br_row);
     lv_slider_set_range(sl_bright, 1, 100);
@@ -306,7 +339,7 @@ static void build(void)
     lv_obj_set_flex_flow(ao_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ao_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *aol = lv_label_create(ao_row);
-    lv_label_set_text(aol, "Ekran zawsze włączony");
+    lv_label_set_text(aol, T(S_ALWAYS_ON));
     lv_obj_set_style_text_color(aol, lv_color_hex(0xFFFFFF), 0);
     sw_alwayson = lv_switch_create(ao_row);
     if (!g_disp_cfg.sleep_mode_en) lv_obj_add_state(sw_alwayson, LV_STATE_CHECKED);
@@ -321,7 +354,7 @@ static void build(void)
     lv_obj_set_flex_flow(sleep_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(sleep_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *spl = lv_label_create(sleep_row);
-    lv_label_set_text(spl, "Wyłącz podświetlenie po (min)");
+    lv_label_set_text(spl, T(S_SLEEP_AFTER));
     lv_obj_set_style_text_color(spl, lv_color_hex(0xFFFFFF), 0);
     dd_sleep = lv_dropdown_create(sleep_row);
     lv_dropdown_set_options(dd_sleep, "1\n2\n5\n10\n15\n30");
@@ -345,16 +378,22 @@ static void build(void)
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
 
-    /* subskrypcja wynikow wyszukiwania */
-    esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE,
-                                    VIEW_EVENT_CITY_SEARCH_RESULT,
-                                    settings_event_handler, NULL);
+    /* subskrypcja wynikow wyszukiwania (rejestrujemy tylko raz) */
+    if (!s_evt_registered) {
+        esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE,
+                                        VIEW_EVENT_CITY_SEARCH_RESULT,
+                                        settings_event_handler, NULL);
+        s_evt_registered = true;
+    }
 
     ESP_LOGI(TAG, "ekran ustawien utworzony");
 }
 
 void ui_settings_open(void)
 {
-    if (!s_created) { build(); s_created = true; }
+    if (s_created && s_built_lang != ui_lang_get()) {
+        lv_obj_del(scr); scr = NULL; s_created = false;
+    }
+    if (!s_created) { build(); s_created = true; s_built_lang = ui_lang_get(); }
     lv_disp_load_scr(scr);
 }

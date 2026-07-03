@@ -3,6 +3,7 @@
 #include "ui_settings.h"
 #include "ui_forecast.h"
 #include "ui_font_pl.h"
+#include "ui_i18n.h"
 #include "ui.h"                 /* daje LV_IMG_DECLARE(...) dla ikon oraz ui_screen_setting */
 #include "view_data.h"
 #include "indicator_weather.h"
@@ -161,21 +162,11 @@ static void update_time(void)
     }
     if (lbl_time) lv_label_set_text(lbl_time, buf);
 
-    /* data po polsku: "Środa, 2 lipca 2026" */
-    static const char *pl_days[7] = {
-        "Niedziela", "Poniedziałek", "Wtorek", "Środa",
-        "Czwartek", "Piątek", "Sobota"
-    };
-    static const char *pl_months[12] = {
-        "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
-        "lipca", "sierpnia", "września", "października", "listopada", "grudnia"
-    };
+    /* data w biezacym jezyku, np. "Wednesday, 2 July 2026" / "Środa, 2 lipca 2026" */
     if (lbl_date) {
-        int wd = tm_info.tm_wday;      if (wd < 0 || wd > 6)  wd = 0;
-        int mo = tm_info.tm_mon;       if (mo < 0 || mo > 11) mo = 0;
         char dbuf[48];
-        snprintf(dbuf, sizeof(dbuf), "%s, %d %s %d",
-                 pl_days[wd], tm_info.tm_mday, pl_months[mo], tm_info.tm_year + 1900);
+        ui_i18n_date(dbuf, sizeof(dbuf), tm_info.tm_wday, tm_info.tm_mday,
+                     tm_info.tm_mon, tm_info.tm_year + 1900);
         lv_label_set_text(lbl_date, dbuf);
     }
 }
@@ -197,16 +188,20 @@ static void update_wifi(bool connected, int8_t rssi)
     if (img_wifi) lv_img_set_src(img_wifi, wifi_img_for(connected, rssi));
 }
 
+static struct view_data_weather s_last_wx;
+static bool s_wx_valid = false;
+
 static void update_weather(const struct view_data_weather *wx)
 {
     if (!wx || !wx->valid) return;
+    if (wx != &s_last_wx) { s_last_wx = *wx; s_wx_valid = true; }  /* zapamietaj do odswiezenia jezyka */
     char b[16];
     /* Uwaga: znak stopnia (U+00B0) czesto nie jest w domyslnym zakresie fontu
      * font montserrat_28 w tym buildzie MA znak stopnia (zakres od 0xB0). */
     snprintf(b, sizeof(b), "%.0f\u00B0C", wx->temperature);
     if (lbl_wx_temp) lv_label_set_text(lbl_wx_temp, b);
     if (lbl_wx_city) lv_label_set_text(lbl_wx_city, wx->city);
-    if (lbl_wx_desc) lv_label_set_text(lbl_wx_desc, indicator_weather_code_desc(wx->weather_code));
+    if (lbl_wx_desc) lv_label_set_text(lbl_wx_desc, ui_i18n_wmo_desc(wx->weather_code));
     if (wx_icon) {
         lv_label_set_text(wx_icon, indicator_weather_code_glyph(wx->weather_code, wx->is_day));
         lv_obj_set_style_text_color(wx_icon,
@@ -261,14 +256,10 @@ static void home_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
 }
 
 /* ============================ budowa ekranu ============================ */
-lv_obj_t *ui_home_create(void)
+/* Buduje/odtwarza widgety ekranu glownego (uzywa biezacego jezyka).
+ * Moze byc wolane ponownie po lv_obj_clean(ui_home) przy zmianie jezyka. */
+static void build_home_widgets(void)
 {
-    ui_home = lv_obj_create(NULL);
-    lv_obj_set_style_text_font(ui_home, &ui_font_pl_18, 0);  /* polskie znaki */
-    lv_obj_clear_flag(ui_home, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_home, lv_color_hex(0x0E131A), 0);
-    lv_obj_set_style_bg_opa(ui_home, LV_OPA_COVER, 0);
-
     /* ---- gorny pasek: WiFi + trybik po prawej ---- */
     lv_obj_t *gear = lv_img_create(ui_home);
     lv_img_set_src(gear, &ui_img_setting_png);
@@ -283,7 +274,7 @@ lv_obj_t *ui_home_create(void)
 
     /* miejscowosc na gornym pasku, od lewej (dluga nazwa -> wielokropek) */
     lbl_wx_city = lv_label_create(ui_home);
-    lv_label_set_text(lbl_wx_city, "(brak lokalizacji)");
+    lv_label_set_text(lbl_wx_city, T(S_NO_LOCATION));
     lv_obj_set_style_text_color(lbl_wx_city, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(lbl_wx_city, &ui_font_pl_18, 0);
     lv_obj_set_width(lbl_wx_city, 330);
@@ -302,16 +293,16 @@ lv_obj_t *ui_home_create(void)
         LV_FLEX_ALIGN_SPACE_EVENLY);  /* odstepy miedzy wierszami */
     lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
 
-    make_tile(grid, &ui_img_co2_png,        "CO2",         "ppm",  SENSOR_DATA_CO2,      &lbl_co2);
-    make_tile(grid, &ui_img_tvoc_png,       "TVOC",        "ppb",  SENSOR_DATA_TVOC,     &lbl_tvoc);
-    make_tile(grid, &ui_img_temp_1_png,     "Temperatura", "\u00B0C", SENSOR_DATA_TEMP,  &lbl_temp);
-    make_tile(grid, &ui_img_humidity_1_png, "Wilgotność",  "%",    SENSOR_DATA_HUMIDITY, &lbl_hum);
+    make_tile(grid, &ui_img_co2_png,        "CO2",           "ppm",     SENSOR_DATA_CO2,      &lbl_co2);
+    make_tile(grid, &ui_img_tvoc_png,       "TVOC",          "ppb",     SENSOR_DATA_TVOC,     &lbl_tvoc);
+    make_tile(grid, &ui_img_temp_1_png,     T(S_TILE_TEMP),  "\u00B0C", SENSOR_DATA_TEMP,     &lbl_temp);
+    make_tile(grid, &ui_img_humidity_1_png, T(S_TILE_HUM),   "%",       SENSOR_DATA_HUMIDITY, &lbl_hum);
 
     /* ---- dol ekranu, po srodku: godzina + data ---- */
     lv_obj_t *dt_row = lv_obj_create(ui_home);
     lv_obj_remove_style_all(dt_row);
     lv_obj_set_size(dt_row, LV_PCT(96), LV_SIZE_CONTENT);
-    lv_obj_align(dt_row, LV_ALIGN_BOTTOM_MID, 0, -62);
+    lv_obj_align(dt_row, LV_ALIGN_BOTTOM_MID, 0, -58);
     lv_obj_set_flex_flow(dt_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(dt_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(dt_row, 14, 0);
@@ -327,7 +318,7 @@ lv_obj_t *ui_home_create(void)
     lv_obj_set_style_text_color(lbl_date, lv_color_hex(0x9AA5B1), 0);
     lv_obj_set_style_text_font(lbl_date, &ui_font_pl_18, 0);
 
-    /* ---- pod spodem: miejscowosc, ikona pogody, temperatura, opis ---- */
+    /* ---- pod spodem, wysrodkowane: ikona pogody, temperatura, opis ---- */
     lv_obj_t *wx_row = lv_obj_create(ui_home);
     lv_obj_remove_style_all(wx_row);
     lv_obj_set_size(wx_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -340,25 +331,47 @@ lv_obj_t *ui_home_create(void)
     lv_obj_set_style_pad_column(wx_row, 10, 0);
     lv_obj_clear_flag(wx_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* wysrodkowany wiersz: ikona pogody, temperatura, opis (miasto jest na gornym pasku) */
-
     /* ikona pogody (glif z fontu Weather Icons) */
     wx_icon = lv_label_create(wx_row);
     lv_obj_set_style_text_font(wx_icon, &ui_font_weather_34, 0);
     lv_obj_set_style_text_color(wx_icon, lv_color_hex(0x9AA5B1), 0);
     lv_label_set_text(wx_icon, "");
 
-    /* 3) temperatura */
+    /* temperatura */
     lbl_wx_temp = lv_label_create(wx_row);
     lv_label_set_text(lbl_wx_temp, "--\u00B0C");
     lv_obj_set_style_text_color(lbl_wx_temp, lv_color_hex(0xFFFFFF), 0);
 
-    /* 4) opis tekstowy */
+    /* opis tekstowy */
     lbl_wx_desc = lv_label_create(wx_row);
     lv_label_set_text(lbl_wx_desc, "");
     lv_obj_set_style_text_color(lbl_wx_desc, lv_color_hex(0x9AA5B1), 0);
 
-    /* ---- subskrypcja eventow (auto-aktualizacja) ---- */
+    /* natychmiast pokaz to, co juz wiemy (bez czekania na kolejne eventy) */
+    update_time();
+    if (s_wx_valid) update_weather(&s_last_wx);
+}
+
+/* Przebudowa ekranu glownego po zmianie jezyka (rejestracje eventow zostaja). */
+void ui_home_apply_lang(void)
+{
+    if (!ui_home) return;
+    lv_obj_clean(ui_home);
+    build_home_widgets();
+}
+
+lv_obj_t *ui_home_create(void)
+{
+    ui_lang_load();   /* wczytaj zapisany jezyk (domyslnie EN) przed budowa UI */
+    ui_home = lv_obj_create(NULL);
+    lv_obj_set_style_text_font(ui_home, &ui_font_pl_18, 0);  /* polskie znaki */
+    lv_obj_clear_flag(ui_home, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(ui_home, lv_color_hex(0x0E131A), 0);
+    lv_obj_set_style_bg_opa(ui_home, LV_OPA_COVER, 0);
+
+    build_home_widgets();
+
+    /* ---- subskrypcja eventow (auto-aktualizacja) - rejestrujemy raz ---- */
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_TIME,
                                     home_event_handler, NULL);
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA,
@@ -372,7 +385,6 @@ lv_obj_t *ui_home_create(void)
     esp_event_handler_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_TIME_CFG_UPDATE,
                                     home_event_handler, NULL);
 
-    update_time();
     lv_timer_create(home_guard_cb, 250, NULL);   /* pilnuje, by nasz ekran byl domem */
     ESP_LOGI(TAG, "ekran glowny utworzony");
     return ui_home;

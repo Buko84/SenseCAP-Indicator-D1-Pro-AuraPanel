@@ -1,212 +1,217 @@
 <div align="center">
 
-# SenseCAP Indicator D1 Pro — własny firmware
+# SenseCAP Indicator D1 Pro — custom firmware
 
-**Zegar · kalendarz · dane z czujników · pogoda i prognoza 3-dniowa**
-zbudowane w całości na GitHub Actions do jednego pliku `merged.bin`.
+**Clock · calendar · live sensor data · weather with a 3-day forecast**
+built end-to-end on GitHub Actions into a single `merged.bin`.
 
 ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.1.4-red)
 ![Target](https://img.shields.io/badge/MCU-ESP32--S3-blue)
 ![LVGL](https://img.shields.io/badge/LVGL-8.3-green)
-![Weather](https://img.shields.io/badge/pogoda-Open--Meteo%20(bez%20klucza)-lightgrey)
-![License](https://img.shields.io/badge/licencja-MIT%20%2F%20OFL-informational)
+![Weather](https://img.shields.io/badge/weather-Open--Meteo%20(no%20API%20key)-lightgrey)
+![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL-informational)
 
-<!-- Po wypchnięciu do własnego repo podmień USER/REPO poniżej, aby pokazać status buildu -->
+<!-- After pushing to your own repo, replace USER/REPO below to show the build status -->
 <!-- ![build](https://github.com/USER/REPO/actions/workflows/build.yml/badge.svg) -->
 
 </div>
 
 ---
 
-## Spis treści
+## Table of contents
 
-- [Czym to jest](#czym-to-jest)
-- [Jak to wygląda](#jak-to-wygląda)
-- [Funkcje](#funkcje)
-- [Ekrany](#ekrany)
-- [Jak to działa](#jak-to-działa)
-- [Budowanie (GitHub Actions)](#budowanie-github-actions)
-- [Wgranie na urządzenie](#wgranie-na-urządzenie)
-- [Struktura repozytorium](#struktura-repozytorium)
-- [Dostosowanie](#dostosowanie)
-- [Uwagi i ograniczenia](#uwagi-i-ograniczenia)
-- [Podziękowania i licencje](#podziękowania-i-licencje)
-
----
-
-## Czym to jest
-
-To **nakładka** na oficjalny przykład Seeed [`indicator_basis`](https://github.com/Seeed-Solution/sensecap_indicator_esp32) dla urządzenia **SenseCAP Indicator D1 Pro** (ekran dotykowy 4", ESP32-S3 + RP2040).
-
-Zamiast pisać wszystko od zera, projekt **zachowuje sprawdzone fundamenty** oryginalnego firmware (bring-up płytki, sterownik wyświetlacza i dotyku, komunikacja z RP2040 dostarczająca dane z czujników, stos Wi-Fi, SNTP, zapis do NVS) i **wymienia całą warstwę interfejsu** na własną oraz dokłada **pogodę** z darmowego dostawcy Open-Meteo.
-
-Najważniejsze: **nie musisz nic budować lokalnie**. Wrzucasz to repo na GitHub, a workflow sam klonuje oryginał Seeed (na przypiętej wersji), nakłada pliki z `overlay/`, nanosi kilka drobnych zmian w kodzie Seeed i kompiluje gotowy do wgrania `merged.bin`.
+- [What it is](#what-it-is)
+- [What it looks like](#what-it-looks-like)
+- [Features](#features)
+- [Screens](#screens)
+- [How it works](#how-it-works)
+- [Building (GitHub Actions)](#building-github-actions)
+- [Flashing the device](#flashing-the-device)
+- [Repository layout](#repository-layout)
+- [Customization](#customization)
+- [Notes and limitations](#notes-and-limitations)
+- [Credits and licenses](#credits-and-licenses)
 
 ---
 
-## Jak to wygląda
+## What it is
 
-Ekran główny (480 × 480, ciemny motyw):
+This is an **overlay** on top of Seeed's official [`indicator_basis`](https://github.com/Seeed-Solution/sensecap_indicator_esp32) example for the **SenseCAP Indicator D1 Pro** (4" touchscreen, ESP32-S3 + RP2040).
+
+Instead of rewriting everything from scratch, the project **keeps the proven foundation** of the stock firmware (board bring-up, display and touch drivers, communication with the RP2040 that provides sensor data, the Wi-Fi stack, SNTP, NVS storage) and **replaces the whole UI layer** with a custom one, adding **weather** from the free Open-Meteo provider.
+
+The key point: **you don't build anything locally**. You push this repo to GitHub and the workflow clones Seeed's upstream (at a pinned revision), copies the files from `overlay/`, applies a few small edits to Seeed's code, and compiles a ready-to-flash `merged.bin`.
+
+The interface is **English by default**, with **Polish** available as an option in Settings (the choice is saved on the device).
+
+---
+
+## What it looks like
+
+Home screen (480 × 480, dark theme):
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Świdnik                     [((•))]   [⚙]  │   ← Wi-Fi (zasięg / przekreślone) + ustawienia
-│                                             │
-│      ┌───────────┐      ┌───────────┐       │
-│      │ CO2       │      │ TVOC      │       │
-│      │   612 ppm │      │   34 ppb  │       │   ← 4 kafelki: klik = historia (wykres)
-│      └───────────┘      └───────────┘       │
-│      ┌───────────┐      ┌───────────┐       │
-│      │ Temp      │      │ Wilgotność│       │
-│      │   22.4 °C │      │    47 %   │       │
-│      └───────────┘      └───────────┘       │
-│                                             │
-│         12:34   Środa, 2 lipca 2026         │   ← godzina + data po polsku
-│            ☀  23°C  Bezchmurnie             │   ← klik = prognoza 3-dniowa
+│ Warsaw                       [((•))]   [⚙]   │   ← city + Wi-Fi + settings
+│                                               │
+│      ┌───────────┐      ┌───────────┐         │
+│      │ CO2       │      │ TVOC      │         │
+│      │   612 ppm │      │   34 ppb  │         │   ← 4 tiles: tap = history (chart)
+│      └───────────┘      └───────────┘         │
+│      ┌───────────┐      ┌───────────┐         │
+│      │ Temp      │      │ Humidity  │         │
+│      │   22.4 °C │      │    47 %   │         │
+│      └───────────┘      └───────────┘         │
+│                                               │
+│           12:34   Wednesday, 2 July 2026      │   ← time + date
+│              ☀  23°C  Clear                   │   ← weather (tap = 3-day forecast)
 └─────────────────────────────────────────────┘
 ```
 
-- **4 wyśrodkowane kafelki** czujników w równych odstępach.
-- **Prawy górny róg:** ikona Wi-Fi (słupki zasięgu, a przy braku sieci — przekreślona) oraz trybik wchodzący w ustawienia.
-- **Dół, wyśrodkowany:** duża godzina oraz data słownie po polsku.
-- **Pod spodem:** miejscowość, prawdziwa ikona pogody, temperatura i krótki opis.
+- **4 centered sensor tiles** with even spacing.
+- **Top bar:** the city on the left (a long name is truncated with an ellipsis), and on the right the Wi-Fi icon (signal bars, or crossed out when there is no network) plus the gear that opens Settings.
+- **Bottom, centered:** large clock and the date written out in words.
+- **Below that, centered:** the weather icon, temperature and a short condition description.
 
 ---
 
-## Funkcje
+## Features
 
-| Obszar | Opis |
+| Area | Description |
 | --- | --- |
-| **Czujniki** | CO2, TVOC, temperatura i wilgotność (SCD41 + SGP40) na czterech kafelkach, aktualizacja na żywo. |
-| **Historia** | Kliknięcie kafla otwiera wykres dzienny i tygodniowy danego czujnika (z oryginalnego firmware). |
-| **Zegar i data** | Godzina 12/24 h oraz data słownie po polsku (np. „Środa, 2 lipca 2026"). |
-| **Pogoda** | Bieżąca temperatura, ikona warunków i opis dla wybranej miejscowości (Open-Meteo, bez klucza API). |
-| **Prognoza** | Ekran 3-dniowy: dzień tygodnia + data, ikona, temperatura maks./min., opis. |
-| **Wi-Fi** | Ikona statusu z siłą sygnału; konfiguracja sieci. |
-| **Ustawienia czasu** | Format 12/24 h, synchronizacja NTP, strefa czasowa, czas letni, ręczne ustawienie daty/godziny, adres serwera NTP. |
-| **Wyświetlacz** | Suwak jasności (podgląd na żywo) oraz tryb „zawsze włączony"; po wyłączeniu — wybór czasu do wygaszenia podświetlenia. |
-| **Język** | Pełna polska diakrytyka (własny font Montserrat z zakresem Ą–Ż). |
+| **Sensors** | CO2, TVOC, temperature and humidity (SCD41 + SGP40) on four tiles, updated live. |
+| **History** | Tapping a tile opens the daily and weekly chart for that sensor (reused from the stock firmware). |
+| **Clock & date** | 12/24-hour time and the date written out in words (e.g. "Wednesday, 2 July 2026"). |
+| **Weather** | Current temperature, condition icon and description for the chosen city (Open-Meteo, no API key). |
+| **Forecast** | 3-day screen: weekday + date, icon, high/low temperature, description. |
+| **Wi-Fi** | Status icon with signal strength; network configuration. |
+| **Time settings** | 12/24-hour format, NTP sync, a time zone picked from a list of named regions (automatic daylight-saving switching by date), manual date/time entry, NTP server address. |
+| **Display** | Brightness slider (live preview) and an "always on" mode; when off, a picker for the backlight-off delay. |
+| **Language** | English (default) or Polish, switchable in Settings; the whole UI, dates and weather descriptions follow the choice, which is saved on the device. |
 
 ---
 
-## Ekrany
+## Screens
 
-- **Główny** — kafelki + zegar/data + pogoda, z ikonami Wi-Fi i ustawień.
-- **Prognoza 3-dniowa** — otwierana kliknięciem w pogodę.
-- **Ustawienia** — kolejno: Wi-Fi, Ustawienia czasu, Pogoda (wyszukiwarka miasta), Wyświetlacz.
-- **Ustawienia czasu** — przełączniki, strefa, DST, rolki do ręcznego ustawienia, pole NTP.
-- **Historia czujnika** — wykres dzień/tydzień dla wybranego czujnika.
+- **Home** — tiles + clock/date + weather, with the Wi-Fi and settings icons.
+- **3-day forecast** — opened by tapping the weather.
+- **Settings** — top to bottom: Language, Wi-Fi, Time settings, Weather (city search), Display.
+- **Time settings** — 12/24 h and NTP toggles, a list of named time zones (with automatic DST), rollers for manual date/time, an NTP server field.
+- **Sensor history** — a daily/weekly chart for the selected sensor.
 
-Wyszukiwanie miasta: wpisz nazwę, wybierz z listy podpowiedzi — wybrana miejscowość zapisuje się i od razu pobierana jest pogoda. Jeśli nic nie wybierzesz, lokalizacja zostanie **wykryta automatycznie z adresu IP** po połączeniu z siecią.
+City search: type a name and pick from the suggestions — the chosen city is saved and the weather is fetched right away. If you don't pick anything, the location is **detected automatically from your IP address** once connected to a network.
 
 ---
 
-## Jak to działa
+## How it works
 
-**Architektura.** Firmware Seeed jest zbudowany w stylu MVC na pętli zdarzeń `esp_event`. Model (czujniki, Wi-Fi, czas, wyświetlacz) publikuje zdarzenia `VIEW_EVENT_*`, a warstwa widoku je odbiera i rysuje. Ta nakładka **nie zmienia modelu** — dostarcza własne ekrany LVGL, które nasłuchują tych samych zdarzeń, oraz nowy moduł pogody.
+**Architecture.** The Seeed firmware is built MVC-style around an `esp_event` loop. The model (sensors, Wi-Fi, time, display) publishes `VIEW_EVENT_*` events and the view layer receives them and draws. This overlay **does not change the model** — it provides its own LVGL screens that subscribe to the same events, plus a new weather module.
 
-**Pogoda.** Moduł `indicator_weather` korzysta z [Open-Meteo](https://open-meteo.com/) (darmowe, bez klucza):
-- geokodowanie (wyszukiwarka miast),
-- pogoda bieżąca (temperatura + kod pogody WMO),
-- prognoza dzienna (maks./min. + kod WMO),
-- automatyczne wykrycie miasta z geolokalizacji IP, gdy nic nie wybrano.
+**Weather.** The `indicator_weather` module uses [Open-Meteo](https://open-meteo.com/) (free, no key):
+- geocoding (city search),
+- current weather (temperature + WMO weather code),
+- daily forecast (high/low + WMO code),
+- automatic city detection from IP geolocation when nothing is chosen.
 
-**Grafika.** Ikony pogody pochodzą z fontu „Weather Icons" przekonwertowanego do LVGL; polskie znaki zapewnia własny font Montserrat wygenerowany z zakresem Ą–Ż. Oba są generowane z plików źródłowych i wkompilowane.
+**Graphics.** The weather icons come from the "Weather Icons" font converted to LVGL; Polish characters are provided by a custom Montserrat font generated with the Ą–Ż range. Both are generated from source files and compiled in.
 
-**Budowanie.** Zamiast trzymać w repo cały (~200 MB) firmware Seeed, workflow robi to za Ciebie:
+**Building.** Rather than keeping the entire (~200 MB) Seeed firmware in the repo, the workflow does it for you:
 
 ```
 GitHub Actions
-   ├─ klonuje Seeed/sensecap_indicator_esp32 na PRZYPIĘTYM commicie
-   ├─ kopiuje overlay/main/**  →  examples/indicator_basis/main/
-   ├─ uruchamia ci/apply_overlay.py  (kilka deterministycznych zmian w kodzie Seeed)
-   ├─ idf.py build          (obraz espressif/idf:v5.1.4, ESP32-S3)
-   └─ esptool merge_bin     →  merged.bin  (offsety wprost z build/flash_args)
+   ├─ clones Seeed/sensecap_indicator_esp32 at a PINNED commit
+   ├─ copies overlay/main/**  →  examples/indicator_basis/main/
+   ├─ runs ci/apply_overlay.py  (a few deterministic edits to Seeed's code)
+   ├─ idf.py build          (image espressif/idf:v5.1.4, ESP32-S3)
+   └─ esptool merge_bin     →  merged.bin  (offsets straight from build/flash_args)
 ```
 
-Patcher (`ci/apply_overlay.py`) jest deterministyczny i **głośno przerywa build**, gdy któraś zmiana nie pasuje do przypiętej wersji — dzięki temu build nigdy nie „uda się" po cichu na niezmienionym firmware.
+The patcher (`ci/apply_overlay.py`) is deterministic and **fails the build loudly** if any edit no longer matches the pinned upstream — so the build can never silently "succeed" on unmodified firmware.
 
 ---
 
-## Budowanie (GitHub Actions)
+## Building (GitHub Actions)
 
-1. Utwórz **puste** repozytorium na GitHubie i wgraj do niego zawartość tego folderu (z zachowaniem struktury katalogów).
-2. Wejdź w zakładkę **Actions** — build ruszy sam po `push` (lub uruchom ręcznie: *Run workflow*).
-3. Po zielonym buildzie otwórz dany run → sekcja **Artifacts** → pobierz **`sensecap-indicator-merged`** (w środku `merged.bin`).
+1. Create an **empty** GitHub repository and upload the contents of this folder (keeping the directory structure).
+2. Open the **Actions** tab — the build starts on `push` (or run it manually: *Run workflow*).
+3. After a green build, open the run → **Artifacts** section → download **`sensecap-indicator-merged`** (it contains `merged.bin`).
 
-Chcesz binarkę w **Releases**? Wypchnij tag:
+Want the binary in **Releases**? Push a tag:
 
 ```bash
 git tag v1.0.0 && git push --tags
 ```
 
-`merged.bin` dołączy się do Release automatycznie.
+`merged.bin` is attached to the Release automatically.
 
 ---
 
-## Wgranie na urządzenie
+## Flashing the device
 
-`merged.bin` zawiera bootloader + tablicę partycji + aplikację, więc wgrywasz go od adresu **`0x0`**:
+`merged.bin` contains the bootloader + partition table + application, so flash it from offset **`0x0`**:
 
 ```bash
 esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 write_flash 0x0 merged.bin
 ```
 
-> Windows: użyj właściwego portu `COM`. Zadziała też web-flasher Espressif (`merged.bin` @ `0x0`).
+> Windows: use the right `COM` port. Espressif's web flasher works too (`merged.bin` @ `0x0`).
 
 ---
 
-## Struktura repozytorium
+## Repository layout
 
 ```
 .
-├─ .github/workflows/build.yml     # CI: klon + patch + build + merged.bin
-├─ ci/apply_overlay.py             # deterministyczne zmiany w kodzie Seeed
+├─ .github/workflows/build.yml     # CI: clone + patch + build + merged.bin
+├─ ci/apply_overlay.py             # deterministic edits to Seeed's code
 └─ overlay/main/
    ├─ model/
-   │  └─ indicator_weather.c/.h    # Open-Meteo: geokodowanie, pogoda, prognoza, NTP
+   │  └─ indicator_weather.c/.h    # Open-Meteo: geocoding, weather, forecast, NTP
    └─ ui/
-      ├─ ui_home.c/.h              # ekran główny (kafelki, zegar, data, pogoda)
-      ├─ ui_settings.c/.h          # ustawienia (WiFi, czas, pogoda, wyświetlacz)
-      ├─ ui_time.c/.h              # ustawienia czasu (12/24h, NTP, strefa, DST, ręcznie)
-      ├─ ui_forecast.c/.h          # prognoza 3-dniowa
-      ├─ ui_font_pl_16.c           # Montserrat 16 px z polskim zakresem
-      ├─ ui_font_pl_18.c           # Montserrat 18 px z polskim zakresem
-      ├─ ui_font_weather_34.c      # font ikon pogody
-      └─ ui_font_pl.h              # deklaracje fontów
+      ├─ ui_home.c/.h              # home screen (tiles, clock, date, weather)
+      ├─ ui_settings.c/.h          # settings (language, Wi-Fi, time, weather, display)
+      ├─ ui_time.c/.h              # time settings (12/24h, NTP, named zones w/ auto-DST, manual)
+      ├─ ui_forecast.c/.h          # 3-day forecast
+      ├─ ui_i18n.c/.h              # translations (English/Polish) + date/weather localization
+      ├─ ui_font_pl_16.c           # Montserrat 16 px with the Polish range
+      ├─ ui_font_pl_18.c           # Montserrat 18 px with the Polish range
+      ├─ ui_font_weather_34.c      # weather-icon font
+      └─ ui_font_pl.h              # font declarations
 ```
 
 ---
 
-## Dostosowanie
+## Customization
 
-Najważniejsze pokrętła:
+The main knobs:
 
-| Gdzie | Ustawienie |
+| Where | Setting |
 | --- | --- |
-| `.github/workflows/build.yml` → `UPSTREAM_SHA` | przypięty commit oryginału Seeed (przy zmianie sprawdź, czy patcher nadal trafia). |
-| `.github/workflows/build.yml` → `PROJECT_DIR` | ścieżka budowanego przykładu. |
-| `overlay/main/model/indicator_weather.h` → `WEATHER_REFRESH_MIN` | co ile minut odświeżać pogodę (domyślnie 30). |
-| `overlay/main/ui/ui_time.c` → `YEAR_MIN`/`YEAR_MAX` | zakres lat w ręcznym ustawieniu daty. |
+| `.github/workflows/build.yml` → `UPSTREAM_SHA` | pinned commit of Seeed's upstream (after changing it, verify the patcher still matches). |
+| `.github/workflows/build.yml` → `PROJECT_DIR` | path of the example being built. |
+| `overlay/main/model/indicator_weather.h` → `WEATHER_REFRESH_MIN` | weather refresh interval in minutes (default 30). |
+| `overlay/main/ui/ui_time.c` → `YEAR_MIN`/`YEAR_MAX` | year range in the manual date entry. |
+| `overlay/main/ui/ui_i18n.c` → `STR` table | UI strings; add a language by extending `ui_lang_t` and the tables. |
 
-Chcesz inne ikony pogody lub większy zakres znaków? Fonty generuje się z plików TTF narzędziem `lv_font_conv`; wystarczy podmienić plik `ui_font_*` i deklarację.
-
----
-
-## Uwagi i ograniczenia
-
-- **Pierwsze uruchomienie:** dopóki nie skonfigurujesz Wi-Fi, urządzenie pokazuje ekran konfiguracji sieci; po połączeniu wraca na ekran główny.
-- **Strefa i czas letni** działają w oparciu o model czasu urządzenia — najpewniej w trybie automatycznym (NTP). W trybie ręcznym wpisany czas ustawiany jest wprost.
-- Projekt jest nakładką na przykład `indicator_basis`, a nie na fabryczny (ODM) firmware — zgodnie z otwartym repozytorium Seeed.
+Want different weather icons or a wider character range? Fonts are generated from TTF files with `lv_font_conv`; just replace the `ui_font_*` file and its declaration.
 
 ---
 
-## Podziękowania i licencje
+## Notes and limitations
 
-- **[SenseCAP Indicator ESP32](https://github.com/Seeed-Solution/sensecap_indicator_esp32)** — Seeed Studio (baza: BSP, sterowniki, model). Licencja jak w repozytorium źródłowym.
-- **[Open-Meteo](https://open-meteo.com/)** — darmowe API pogodowe (bez klucza).
-- **[Weather Icons](https://github.com/erikflowers/weather-icons)** — Erik Flowers, ikony pogody na licencji SIL OFL 1.1.
-- **[Montserrat](https://fonts.google.com/specimen/Montserrat)** — font na licencji SIL OFL 1.1.
-- **[LVGL](https://lvgl.io/)** — biblioteka UI (8.3).
+- **First boot:** until Wi-Fi is configured the device shows the network-setup screen; it returns home once connected.
+- **Time zone & DST:** you pick a named region (e.g. "Poland / Central Europe") and daylight-saving switches automatically by date (POSIX rules). This works best in automatic mode (NTP provides UTC). In manual mode the entered time is set as-is. The chosen zone is re-applied after a reboot.
+- **Language:** stored on the device (NVS); English is the default until changed.
+- This is an overlay on the `indicator_basis` example, not on the factory (ODM) firmware, in line with Seeed's open-source repository.
 
-Kod tej nakładki: MIT. Zasoby fontów zachowują swoje licencje OFL.
+---
+
+## Credits and licenses
+
+- **[SenseCAP Indicator ESP32](https://github.com/Seeed-Solution/sensecap_indicator_esp32)** — Seeed Studio (base: BSP, drivers, model). License as in the upstream repository.
+- **[Open-Meteo](https://open-meteo.com/)** — free weather API (no key).
+- **[Weather Icons](https://github.com/erikflowers/weather-icons)** — Erik Flowers, weather icons under SIL OFL 1.1.
+- **[Montserrat](https://fonts.google.com/specimen/Montserrat)** — font under SIL OFL 1.1.
+- **[LVGL](https://lvgl.io/)** — UI library (8.3).
+
+This overlay's code: MIT. Font assets keep their OFL licenses.

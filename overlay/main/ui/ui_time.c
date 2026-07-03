@@ -6,6 +6,7 @@
 #include "view_data.h"
 #include "indicator_weather.h"  /* NTP get/set */
 #include "indicator_time.h"     /* indicator_time_net_zone_set (strefa POSIX z DST) */
+#include "ui_i18n.h"
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -57,6 +58,7 @@ static lv_obj_t *manual_box;
 static lv_obj_t *rl_year, *rl_month, *rl_day, *rl_hour, *rl_min;
 static lv_obj_t *ta_ntp, *kb;
 static bool s_created = false;
+static ui_lang_t s_built_lang = LANG_EN;
 
 /* UTC epoch z wpisanej daty/godziny (bez zaleznosci od TZ) */
 static time_t epoch_utc(int y, int mo, int d, int h, int mi)
@@ -184,7 +186,7 @@ static void build(void)
     lv_obj_set_style_text_font(scr, &ui_font_pl_18, 0);
 
     lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Ustawienia czasu");
+    lv_label_set_text(title, T(S_TIME_TITLE));
     lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 16, 12);
@@ -206,24 +208,24 @@ static void build(void)
     lv_obj_set_scroll_dir(cont, LV_DIR_VER);
 
     /* 24h */
-    lv_obj_t *r1; row(cont, "Format 24-godzinny", &r1);
+    lv_obj_t *r1; row(cont, T(S_FORMAT_24H), &r1);
     sw_24h = lv_switch_create(r1);
     if (g_time_cfg.time_format_24) lv_obj_add_state(sw_24h, LV_STATE_CHECKED);
 
     /* auto (NTP) */
-    lv_obj_t *r2; row(cont, "Synchronizacja automatyczna (NTP)", &r2);
+    lv_obj_t *r2; row(cont, T(S_AUTO_NTP), &r2);
     sw_auto = lv_switch_create(r2);
     if (g_time_cfg.auto_update) lv_obj_add_state(sw_auto, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_auto, auto_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* strefa czasowa (nazwane strefy z automatycznym czasem letnim) */
-    lv_obj_t *r4; row(cont, "Strefa czasowa", &r4);
+    lv_obj_t *r4; row(cont, T(S_TIMEZONE), &r4);
     dd_zone = lv_dropdown_create(r4);
     lv_dropdown_set_symbol(dd_zone, NULL);   /* bez strzalki-symbolu (byl kwadracik w foncie PL) */
     {
         char opts[512]; opts[0] = '\0';
         for (int i = 0; i < TZ_COUNT; i++) {
-            strcat(opts, TZ_TABLE[i].name);
+            strcat(opts, ui_i18n_tz_name(i));
             if (i < TZ_COUNT - 1) strcat(opts, "\n");
         }
         lv_dropdown_set_options(dd_zone, opts);
@@ -236,7 +238,7 @@ static void build(void)
     }
 
     /* serwer NTP */
-    lv_obj_t *r5; row(cont, "Serwer NTP", &r5);
+    lv_obj_t *r5; row(cont, T(S_NTP_SERVER), &r5);
     ta_ntp = lv_textarea_create(r5);
     lv_textarea_set_one_line(ta_ntp, true);
     lv_textarea_set_placeholder_text(ta_ntp, "pool.ntp.org");
@@ -254,7 +256,7 @@ static void build(void)
     lv_obj_set_style_pad_row(manual_box, 4, 0);
 
     lv_obj_t *ml = lv_label_create(manual_box);
-    lv_label_set_text(ml, "Ręczne ustawienie daty i godziny:");
+    lv_label_set_text(ml, T(S_MANUAL_SET));
     lv_obj_set_style_text_color(ml, lv_color_hex(0x8FD0E8), 0);
 
     lv_obj_t *rollers = lv_obj_create(manual_box);
@@ -282,7 +284,7 @@ static void build(void)
     lv_obj_set_width(apply, LV_PCT(100));
     lv_obj_add_event_cb(apply, apply_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *al = lv_label_create(apply);
-    lv_label_set_text(al, "Zastosuj");
+    lv_label_set_text(al, T(S_APPLY));
     lv_obj_center(al);
 
     /* klawiatura (dla pola NTP) */
@@ -299,7 +301,11 @@ static void build(void)
 
 void ui_time_open(void)
 {
-    if (!s_created) { build(); s_created = true; }
+    /* jesli jezyk zmienil sie od czasu budowy - przebuduj ekran */
+    if (s_created && s_built_lang != ui_lang_get()) {
+        lv_obj_del(scr); scr = NULL; s_created = false;
+    }
+    if (!s_created) { build(); s_created = true; s_built_lang = ui_lang_get(); }
     set_rollers_now();
     refresh_manual_visibility();
     lv_disp_load_scr(scr);
