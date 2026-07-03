@@ -33,7 +33,7 @@ built end-to-end on GitHub Actions into a single `aurapanel-d1pro.bin`.
 
 ---
 
-<a href="https://www.buymeacoffee.com/buko84"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=buko84&button_colour=FFDD00&font_colour=000000&font_family=Lato&outline_colour=000000&coffee_colour=ffffff" /></a>
+<img src="https://camo.githubusercontent.com/92fa6330e9e2cea1f6595093d1b9c8f342514e5f88322a2398daf359531b0377/68747470733a2f2f696d672e6275796d6561636f666665652e636f6d2f627574746f6e2d6170692f3f746578743d4275792532306d6525323061253230636f6666656526656d6f6a693d25453225393825393526736c75673d70727a656d656b7326627574746f6e5f636f6c6f75723d66663838303026666f6e745f636f6c6f75723d30303030303026666f6e745f66616d696c793d4c61746f266f75746c696e655f636f6c6f75723d30303030303026636f666665655f636f6c6f75723d464644443030" alt="Buy Me a Coffee" data-canonical-src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=buko84&amp;button_colour=ff8800&amp;font_colour=000000&amp;font_family=Lato&amp;outline_colour=000000&amp;coffee_colour=FFDD00" style="max-width: 100%;">
 
 ---
 
