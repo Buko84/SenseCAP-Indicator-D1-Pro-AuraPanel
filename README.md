@@ -33,7 +33,7 @@ built end-to-end on GitHub Actions into a single `aurapanel-d1pro.bin`.
 
 ---
 
-
+<a href="https://www.buymeacoffee.com/buko84"><img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=buko84&button_colour=FFDD00&font_colour=000000&font_family=Lato&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" /></a>
 
 ---
 
