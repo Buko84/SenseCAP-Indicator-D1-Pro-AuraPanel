@@ -132,13 +132,13 @@ The patcher (`ci/apply_overlay.py`) is deterministic and **fails the build loudl
 
 ## Flashing the device
 
-`merged.bin` contains the bootloader + partition table + application, so flash it from offset **`0x0`**:
+`aurapanel-d1pro.bin` contains the bootloader + partition table + application, so flash it from offset **`0x0`**:
 
 ```bash
-esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 write_flash 0x0 merged.bin
+esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 write_flash 0x0 aurapanel-d1pro.bin
 ```
 
-> Windows: use the right `COM` port. Espressif's web flasher works too (`merged.bin` @ `0x0`).
+> Windows: use the right `COM` port. Espressif's web flasher works too (`aurapanel-d1pro.bin` @ `0x0`).
 
 ---
 
@@ -146,7 +146,7 @@ esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 write_flash 0x0 merged.bin
 
 ```
 .
-├─ .github/workflows/build.yml     # CI: clone + patch + build + merged.bin
+├─ .github/workflows/build.yml     # CI: clone + patch + build + aurapanel-d1pro.bin
 ├─ ci/apply_overlay.py             # deterministic edits to Seeed's code
 └─ overlay/main/
    ├─ model/
