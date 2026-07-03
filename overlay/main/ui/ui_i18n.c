@@ -3,9 +3,22 @@
 #include <stdio.h>
 #include <string.h>
 #include "nvs.h"
+#include "nvs_flash.h"
 #include "esp_log.h"
 
 static const char *TAG = "ui_i18n";
+
+/* UI moze wystartowac zanim model wywola nvs_flash_init() (view_init biegnie
+ * przed model_init w main.c) - dlatego inicjalizujemy NVS defensywnie.
+ * nvs_flash_init() jest idempotentne, wiec pozniejsze wywolanie w modelu jest OK. */
+static void ensure_nvs(void)
+{
+    esp_err_t r = nvs_flash_init();
+    if (r == ESP_ERR_NVS_NO_FREE_PAGES || r == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        nvs_flash_init();
+    }
+}
 
 static ui_lang_t s_lang = LANG_EN;   /* domyslnie angielski */
 
@@ -77,6 +90,7 @@ void ui_lang_set(ui_lang_t l)
 {
     if (l < 0 || l >= LANG_COUNT) l = LANG_EN;
     s_lang = l;
+    ensure_nvs();
     nvs_handle_t h;
     if (nvs_open("uicfg", NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_u8(h, "lang", (uint8_t)l);
@@ -88,6 +102,7 @@ void ui_lang_set(ui_lang_t l)
 
 void ui_lang_load(void)
 {
+    ensure_nvs();
     nvs_handle_t h;
     uint8_t v = LANG_EN;
     if (nvs_open("uicfg", NVS_READONLY, &h) == ESP_OK) {

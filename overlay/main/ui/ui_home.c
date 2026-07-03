@@ -183,8 +183,13 @@ static void update_sensor(enum sensor_data_type type, float val)
     }
 }
 
+static bool    s_wifi_conn = false;
+static int8_t  s_wifi_rssi = 0;
+static bool    s_wifi_valid = false;
+
 static void update_wifi(bool connected, int8_t rssi)
 {
+    s_wifi_conn = connected; s_wifi_rssi = rssi; s_wifi_valid = true;  /* zapamietaj do odswiezenia */
     if (img_wifi) lv_img_set_src(img_wifi, wifi_img_for(connected, rssi));
 }
 
@@ -269,7 +274,8 @@ static void build_home_widgets(void)
     lv_obj_add_event_cb(gear, gear_cb, LV_EVENT_CLICKED, NULL);
 
     img_wifi = lv_img_create(ui_home);
-    lv_img_set_src(img_wifi, &ui_img_wifi_disconet_png);
+    lv_img_set_src(img_wifi, s_wifi_valid ? wifi_img_for(s_wifi_conn, s_wifi_rssi)
+                                          : &ui_img_wifi_disconet_png);
     lv_obj_align_to(img_wifi, gear, LV_ALIGN_OUT_LEFT_MID, -14, 0);
 
     /* miejscowosc na gornym pasku, od lewej (dluga nazwa -> wielokropek) */
