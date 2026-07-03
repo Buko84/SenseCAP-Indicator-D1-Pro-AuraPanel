@@ -25,7 +25,6 @@ built end-to-end on GitHub Actions into a single `aurapanel-d1pro.bin`.
 - [Features](#features)
 - [Screens](#screens)
 - [How it works](#how-it-works)
-- [Building (GitHub Actions)](#building-github-actions)
 - [Flashing the device](#flashing-the-device)
 - [Repository layout](#repository-layout)
 - [Customization](#customization)
