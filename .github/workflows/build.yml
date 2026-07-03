@@ -2,7 +2,7 @@ name: build-merged-bin
 
 # "Wrzuc i gotowe": to repo zawiera TYLKO nakladke (overlay/) + patcher (ci/).
 # GitHub Actions samo sklonuje oryginal Seeeda na PRZYPIETEJ wersji, nalozy nasze
-# pliki, naniesie drobne edycje i zbuduje pojedynczy merged.bin (do wgrania od 0x0).
+# pliki, naniesie drobne edycje i zbuduje pojedynczy aurapanel-d1pro.bin (do wgrania od 0x0).
 
 on:
   push:
@@ -49,17 +49,17 @@ jobs:
             idf.py build &&
             cd build &&
             esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB
-            -o merged.bin @flash_args &&
-            ls -la merged.bin
+            -o aurapanel-d1pro.bin @flash_args &&
+            ls -la aurapanel-d1pro.bin
 
       - name: Zbierz binarki
         run: |
           mkdir -p artifacts
           B="${PROJECT_DIR}/build"
-          cp "$B/merged.bin"                          artifacts/
+          cp "$B/aurapanel-d1pro.bin"                          artifacts/
           cp "$B/bootloader/bootloader.bin"           artifacts/ || true
           cp "$B"/partition_table/partition-table.bin artifacts/ || true
-          find "$B" -maxdepth 1 -name '*.bin' ! -name 'merged.bin' -exec cp {} artifacts/ \;
+          find "$B" -maxdepth 1 -name '*.bin' ! -name 'aurapanel-d1pro.bin' -exec cp {} artifacts/ \;
           echo "--- artifacts ---"; ls -la artifacts
 
       - name: Upload artefaktu
@@ -74,6 +74,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/merged.bin
+            artifacts/aurapanel-d1pro.bin
             artifacts/bootloader.bin
             artifacts/partition-table.bin
